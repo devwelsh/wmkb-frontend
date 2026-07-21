@@ -1,0 +1,41 @@
+# Production deployment — pulls the published image instead of building from
+# source, so the server never needs the repo:
+#
+#   curl -O https://raw.githubusercontent.com/viibeware/wmkb-frontend/main/docker-compose.prod.yml
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# Put a reverse proxy (Caddy/nginx/Traefik) in front for TLS and set
+# WMKB_SECURE_COOKIES=1 so session cookies get the Secure flag and HSTS is sent.
+# To upgrade: docker compose -f docker-compose.prod.yml pull && ... up -d
+services:
+  wmkb-frontend:
+    image: viibeware/wmkb-frontend:latest
+    container_name: wmkb-frontend
+    restart: unless-stopped
+    ports:
+      - "${WMKB_PORT:-5070}:5000"
+    volumes:
+      - wmkb-data:/data
+    environment:
+      - SECRET_KEY=${SECRET_KEY:-}
+      - WMKB_DATA_DIR=/data
+      - WMKB_SECURE_COOKIES=${WMKB_SECURE_COOKIES:-1}
+
+  # Scheduled sync runs as its own process (no in-web-worker scheduler election).
+  # Shares the same image and data volume; it is the single DB writer for KB
+  # content while the web workers are readers.
+  wmkb-sync:
+    image: viibeware/wmkb-frontend:latest
+    container_name: wmkb-sync
+    restart: unless-stopped
+    command: ["python", "sync.py"]
+    volumes:
+      - wmkb-data:/data
+    environment:
+      - SECRET_KEY=${SECRET_KEY:-}
+      - WMKB_DATA_DIR=/data
+    depends_on:
+      - wmkb-frontend
+
+volumes:
+  wmkb-data:

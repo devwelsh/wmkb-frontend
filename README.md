@@ -28,8 +28,8 @@ own background process) and on demand from the admin dashboard.
   debounced live search, document cards with featured-image thumbnails, and a
   detail view with inline PDF/image preview, vehicle fitment, associated part
   numbers, and download.
-- **Light & dark themes** — per-visitor, with the default set in Warehouse
-  Manager (which also picks the default card/list view).
+- **Light & dark themes** — per-visitor, chosen from the sidebar. The document
+  index opens in list view by default; a visitor's own choice is remembered.
 - **Secure admin area at `/admin`** — own login (account lockout), first-run
   setup wizard, and a tabbed Settings modal.
 - **Secure API connection** — pulls records from Warehouse Manager's external KB
@@ -37,15 +37,14 @@ own background process) and on demand from the admin dashboard.
 - **Category tree sync** — mirrors the Warehouse Manager KB category tree.
 - **Full branding** for the public frontend *and* the admin backend — logos,
   names, tagline, favicon, Apple touch icon, Open Graph image + description,
-  custom sidebar/footer links, default theme and default view. All of it is
-  edited in Warehouse Manager (Settings → Knowledge Base) and pulled down on
-  every sync; SVGs are sanitized before being stored.
+  custom sidebar/footer links and default theme, all set in the admin's
+  Branding and Navigation tabs. SVG uploads are server-side sanitized.
 - **Optional Cloudflare Turnstile** on the admin login.
 - Runs behind a reverse proxy; Docker Compose + Flask + gunicorn.
 
 ## Quick start
 
-1. **In Warehouse Manager** (v1.8.0+): Settings → Options → **API Keys** →
+1. **In Warehouse Manager** (v1.7.0+): Settings → Options → **API Keys** →
    generate a key. Copy it (shown once).
 
 2. **Run this app:**
@@ -61,6 +60,29 @@ own background process) and on demand from the admin dashboard.
 4. The public site is live at `http://<host>:5070/`. Point your reverse proxy /
    domain at it. Tune the sync interval and set your branding, logos and custom
    sidebar links in **Settings**.
+
+## Production deployment
+
+The published image is on Docker Hub as
+[`viibeware/wmkb-frontend`](https://hub.docker.com/r/viibeware/wmkb-frontend), so
+a server never needs the source:
+
+```bash
+curl -O https://raw.githubusercontent.com/viibeware/wmkb-frontend/main/docker-compose.prod.yml
+docker compose -f docker-compose.prod.yml up -d
+```
+
+Then set up the app exactly as in the Quick start above. Put a reverse proxy in
+front for TLS; `WMKB_SECURE_COOKIES` defaults to `1` in that file so session
+cookies carry the Secure flag and HSTS is sent. Upgrade with:
+
+```bash
+docker compose -f docker-compose.prod.yml pull
+docker compose -f docker-compose.prod.yml up -d
+```
+
+Both services share the `wmkb-data` volume (SQLite DB, file cache, branding
+uploads, session key) — back that up, and it survives image upgrades.
 
 ## Configuration
 
