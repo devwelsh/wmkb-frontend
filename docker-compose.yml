@@ -1,0 +1,34 @@
+services:
+  wmkb-frontend:
+    build: .
+    image: viibeware/wmkb-frontend
+    container_name: wmkb-frontend
+    restart: unless-stopped
+    ports:
+      - "${WMKB_PORT:-5070}:5000"
+    volumes:
+      - wmkb-data:/data
+    environment:
+      - SECRET_KEY=${SECRET_KEY:-}
+      - WMKB_DATA_DIR=/data
+      - WMKB_SECURE_COOKIES=${WMKB_SECURE_COOKIES:-}
+
+  # Scheduled sync runs as its own process (no in-web-worker scheduler election).
+  # Shares the same image, code, and data volume; it is the single DB writer for
+  # KB content while the web workers are readers.
+  wmkb-sync:
+    build: .
+    image: viibeware/wmkb-frontend
+    container_name: wmkb-sync
+    restart: unless-stopped
+    command: ["python", "sync.py"]
+    volumes:
+      - wmkb-data:/data
+    environment:
+      - SECRET_KEY=${SECRET_KEY:-}
+      - WMKB_DATA_DIR=/data
+    depends_on:
+      - wmkb-frontend
+
+volumes:
+  wmkb-data:

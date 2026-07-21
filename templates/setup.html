@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Set up · {{ branding.admin_name }}</title>
+    {% if branding.favicon %}<link rel="icon" href="/branding/favicon">{% else %}<link rel="icon" type="image/png" href="/static/favicon.png">{% endif %}
+    <link rel="stylesheet" href="/static/theme.css">
+    <script>(function(){var s=null;try{s=localStorage.getItem('wmkb-theme');}catch(e){}document.documentElement.setAttribute('data-theme',(s==='light'||s==='dark')?s:'{{ branding.default_theme }}');})();</script>
+    <style>
+        body { display:flex; align-items:center; justify-content:center; min-height:100vh; padding:1.5rem; }
+        .setup { width:100%; max-width:560px; }
+        .setup-card { background:var(--bg-secondary); border:1px solid var(--border); border-radius:18px; padding:2rem 2.2rem; box-shadow:var(--shadow-lg); animation:in .4s ease; }
+        @keyframes in { from{opacity:0;transform:translateY(10px);} }
+        .setup-head { text-align:center; margin-bottom:1.4rem; }
+        .setup-head h1 { font-size:1.5rem; font-weight:800; }
+        .setup-head p { color:var(--text-muted); font-size:0.9rem; margin-top:0.3rem; }
+        .dots { display:flex; gap:6px; margin:1rem 0 1.4rem; }
+        .dot { flex:1; height:4px; border-radius:2px; background:var(--border); transition:background .2s; }
+        .dot.done { background:color-mix(in srgb,var(--accent) 55%,var(--border)); }
+        .dot.active { background:var(--accent); }
+        .step { display:none; } .step.active { display:block; }
+        .step h3 { font-size:1.05rem; font-weight:700; margin-bottom:0.2rem; }
+        .step .sub { color:var(--text-muted); font-size:0.85rem; margin-bottom:1.1rem; }
+        .pw-rules { list-style:none; display:grid; grid-template-columns:1fr 1fr; gap:3px 14px; font-size:0.76rem; color:var(--text-muted); margin-top:0.4rem; }
+        .pw-rules li.ok { color:var(--yes); }
+        .pw-rules li::before { content:'○ '; } .pw-rules li.ok::before { content:'✓ '; }
+        .row { display:flex; justify-content:space-between; gap:0.5rem; margin-top:1.4rem; }
+        .err-box, .ok-box { display:none; padding:9px 12px; border-radius:var(--radius); font-size:0.82rem; margin-bottom:1rem; }
+        .err-box { background:rgba(239,68,68,.12); border:1px solid var(--danger); color:var(--danger); }
+        .ok-box { background:rgba(16,185,129,.12); border:1px solid var(--yes); color:var(--yes); }
+        .finish { text-align:center; padding:1rem 0; }
+        .finish .check { width:56px; height:56px; border-radius:50%; background:var(--yes); color:#fff; display:flex; align-items:center; justify-content:center; font-size:1.7rem; margin:0 auto 1rem; }
+    </style>
+</head>
+<body>
+<div class="setup">
+    <div class="setup-card">
+        <div class="setup-head">
+            <h1>{{ branding.admin_name }}</h1>
+            <p>Let's get your knowledge base set up</p>
+        </div>
+        <div class="dots"><div class="dot active" id="dot0"></div><div class="dot" id="dot1"></div><div class="dot" id="dot2"></div></div>
+        <div class="err-box" id="errBox"></div>
+        <div class="ok-box" id="okBox"></div>
+
+        <!-- Step 1: admin account -->
+        <div class="step active" id="step0">
+            <h3>Create your admin account</h3>
+            <div class="sub">This is how you'll sign in to manage settings.</div>
+            <div class="form-group"><label class="form-label">Username</label><input class="form-input" id="suUser" autocomplete="username"></div>
+            <div class="form-group"><label class="form-label">Display name (optional)</label><input class="form-input" id="suName"></div>
+            <div class="form-group"><label class="form-label">Password</label><input class="form-input" type="password" id="suPass" autocomplete="new-password" oninput="checkPw()">
+                <ul class="pw-rules"><li id="r-len">At least 10 characters</li><li id="r-mix">3 of: a-z, A-Z, 0-9, symbol</li></ul>
+            </div>
+            <div class="row"><span></span><button class="btn btn-primary" onclick="createAccount()">Continue</button></div>
+        </div>
+
+        <!-- Step 2: WM connection -->
+        <div class="step" id="step1">
+            <h3>Connect to Warehouse Manager</h3>
+            <div class="sub">Enter your Warehouse Manager URL and an API key (Settings → Options → API Keys in Warehouse Manager).</div>
+            <div class="form-group"><label class="form-label">Warehouse Manager base URL</label><input class="form-input" id="suBase" placeholder="https://warehouse.example.com"></div>
+            <div class="form-group"><label class="form-label">API key</label><input class="form-input" id="suKey" placeholder="wmkb_…" autocomplete="off"></div>
+            <div class="form-hint" id="testHint"></div>
+            <div class="row">
+                <button class="btn btn-ghost" onclick="skipConn()">Skip for now</button>
+                <div style="display:flex;gap:0.5rem;">
+                    <button class="btn btn-ghost" onclick="testConn()">Test</button>
+                    <button class="btn btn-primary" onclick="saveConn()">Continue</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 3: finish -->
+        <div class="step" id="step2">
+            <div class="finish" id="finishCard">
+                <div class="check">✓</div>
+                <h3>You're all set</h3>
+                <div class="sub">Run your first content sync now, then visit the admin dashboard to fine-tune branding and settings.</div>
+                <div class="row" style="justify-content:center;gap:0.6rem;">
+                    <button class="btn btn-ghost" onclick="finish(false)">Go to dashboard</button>
+                    <button class="btn btn-primary" id="syncBtn" onclick="finish(true)">Sync now &amp; finish</button>
+                </div>
+            </div>
+            <div class="finish" id="syncingCard" style="display:none;flex-direction:column;align-items:center;text-align:center;">
+                <div class="spinner"></div>
+                <h3>Syncing your knowledge base…</h3>
+                <div class="sub">Pulling categories, documents and files from the main app. This can take a moment for large libraries — please keep this window open; it will continue automatically when it's done.</div>
+                <div class="sub" id="syncProgress" style="margin-top:0.6rem;font-family:var(--mono);color:var(--accent);"></div>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+let step = 0;
+function show(n){ step=n; for(let i=0;i<3;i++){ document.getElementById('step'+i).classList.toggle('active',i===n); document.getElementById('dot'+i).classList.toggle('active',i===n); document.getElementById('dot'+i).classList.toggle('done',i<n);} clearMsg(); }
+function err(m){ const e=document.getElementById('errBox'); e.textContent=m; e.style.display='block'; document.getElementById('okBox').style.display='none'; }
+function ok(m){ const e=document.getElementById('okBox'); e.textContent=m; e.style.display='block'; document.getElementById('errBox').style.display='none'; }
+function clearMsg(){ document.getElementById('errBox').style.display='none'; document.getElementById('okBox').style.display='none'; }
+function checkPw(){ const p=document.getElementById('suPass').value; document.getElementById('r-len').classList.toggle('ok',p.length>=10); const c=[/[a-z]/,/[A-Z]/,/\d/,/[^A-Za-z0-9]/].filter(r=>r.test(p)).length; document.getElementById('r-mix').classList.toggle('ok',c>=3); }
+
+async function createAccount(){
+    const username=document.getElementById('suUser').value.trim();
+    const password=document.getElementById('suPass').value;
+    const display_name=document.getElementById('suName').value.trim();
+    if(!username) return err('Please choose a username');
+    try {
+        const res=await fetch('/api/setup/account',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username,password,display_name})});
+        const data=await res.json();
+        if(!res.ok){ if(data.redirect){ window.location.href=data.redirect; return; } return err(data.error||'Could not create account'); }
+        show(1);
+    } catch { err('Connection error'); }
+}
+function skipConn(){ show(2); }
+async function testConn(){
+    const base_url=document.getElementById('suBase').value.trim();
+    const api_key=document.getElementById('suKey').value.trim();
+    document.getElementById('testHint').textContent='Testing…';
+    try {
+        const res=await fetch('/api/admin/connection/test',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({base_url,api_key})});
+        const data=await res.json();
+        document.getElementById('testHint').textContent='';
+        if(res.ok && data.success) ok(data.message||'Connected'); else err(data.error||'Connection failed');
+    } catch { document.getElementById('testHint').textContent=''; err('Connection error'); }
+}
+async function saveConn(){
+    const base_url=document.getElementById('suBase').value.trim();
+    const api_key=document.getElementById('suKey').value.trim();
+    if(!base_url || !api_key) return err('Enter both the URL and an API key');
+    try {
+        const res=await fetch('/api/admin/connection',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({base_url,api_key})});
+        const data=await res.json();
+        if(!res.ok) return err(data.error||'Could not save');
+        show(2);
+    } catch { err('Connection error'); }
+}
+async function finish(doSync){
+    if(doSync){
+        // Swap the finish card for a clear "syncing, please wait" spinner. The
+        // sync request blocks until every file is downloaded, so the spinner
+        // stays up for the whole wait, then we redirect.
+        document.getElementById('finishCard').style.display='none';
+        document.getElementById('syncingCard').style.display='flex';
+        clearMsg();
+    }
+    try {
+        await fetch('/api/setup/complete',{method:'POST'});
+        if(doSync){
+            const res=await fetch('/api/admin/sync',{method:'POST'});
+            const d=await res.json().catch(()=>({}));
+            const p=document.getElementById('syncProgress');
+            if(d && d.status==='error'){ p.style.color='var(--danger)'; p.textContent='Sync failed — you can retry from the dashboard.'; setTimeout(()=>window.location.href='/admin',2200); return; }
+            if(d && d.status){ p.textContent=`Done — ${d.documents||0} documents, ${d.files_downloaded||0} files`; }
+        }
+    } catch {
+        const p=document.getElementById('syncProgress'); if(p){ p.style.color='var(--danger)'; p.textContent='Connection error — opening the dashboard…'; }
+        setTimeout(()=>window.location.href='/admin',2000); return;
+    }
+    window.location.href='/admin';
+}
+
+/* Resume from the correct step instead of dead-ending if the wizard was left
+   half-finished. */
+(async function initWizard(){
+    try {
+        const s = await (await fetch('/api/setup/status')).json();
+        if (s.has_admin && !s.authenticated){ window.location.href='/admin/login'; return; }
+        if (s.has_admin && s.authenticated){ show(s.connection_set ? 2 : 1); return; }
+    } catch (e) {}
+    show(0);
+})();
+</script>
+</body>
+</html>

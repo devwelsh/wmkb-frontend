@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ branding.site_name }}</title>
+    <meta name="description" content="{{ branding.og_description }}">
+    <meta name="theme-color" content="#2f74f0">
+
+    {% if branding.favicon %}<link rel="icon" href="/branding/favicon">
+    {% else %}<link rel="icon" type="image/png" href="/static/favicon.png">{% endif %}
+    {% if branding.apple_touch_icon %}<link rel="apple-touch-icon" href="/branding/apple_touch_icon">{% endif %}
+
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="{{ branding.site_name }}">
+    <meta property="og:description" content="{{ branding.og_description }}">
+    <meta property="og:site_name" content="{{ branding.site_name }}">
+    {% if branding.og_image %}<meta property="og:image" content="{{ request.url_root }}branding/og_image">{% endif %}
+    <meta name="twitter:card" content="{% if branding.og_image %}summary_large_image{% else %}summary{% endif %}">
+    <meta name="twitter:title" content="{{ branding.site_name }}">
+    {% if branding.og_image %}<meta name="twitter:image" content="{{ request.url_root }}branding/og_image">{% endif %}
+
+    <link rel="stylesheet" href="/static/public.css?v={{ version }}">
+    <script>
+      (function () {
+        var saved = null;
+        try { saved = localStorage.getItem('wmkb-theme'); } catch (e) {}
+        var t = (saved === 'light' || saved === 'dark') ? saved : '{{ branding.default_theme }}';
+        document.documentElement.setAttribute('data-theme', t);
+      })();
+    </script>
+</head>
+<body>
+<button class="icon-btn mobile-menu glass" onclick="toggleSidebar()" aria-label="Menu">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+</button>
+<div class="app">
+    <div class="scrim" id="scrim" onclick="toggleSidebar(false)"></div>
+
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-logo">
+            {% if branding.frontend_logo %}
+                <img class="sidebar-logo-img" src="/branding/frontend_logo" alt="{{ branding.site_name }}">
+            {% else %}
+                <div class="sidebar-logo-mark">{{ branding.site_name[:1]|upper }}</div>
+            {% endif %}
+            <div class="sidebar-logo-text">
+                <div class="sidebar-logo-name">{{ branding.site_name }}</div>
+                {% if branding.tagline %}<div class="sidebar-logo-sub">{{ branding.tagline }}</div>{% endif %}
+            </div>
+        </div>
+
+        <div class="sidebar-head">
+            <button class="sidebar-search" onclick="openCmdk()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+                <span>Search the library…</span>
+                <span class="kbd-chip">⌘K</span>
+            </button>
+        </div>
+
+        <nav class="sidebar-nav">
+            <div class="nav-section-label">Browse</div>
+            <div id="navItems"></div>
+            {% if branding.nav_links %}
+            <div class="nav-section-label">Links</div>
+            <div class="sidebar-links">
+                {% for l in branding.nav_links %}
+                    {% if l.style == 'button' %}
+                    <a class="btn btn-primary btn-sm sidebar-link-button" href="{{ l.url }}"{% if l.new_tab %} target="_blank" rel="noopener"{% endif %}>{{ l.label }}</a>
+                    {% else %}
+                    <a class="nav-item is-link" href="{{ l.url }}"{% if l.new_tab %} target="_blank" rel="noopener"{% endif %}>
+                        <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6M10 14 21 3"/></svg>
+                        <span class="nav-label">{{ l.label }}</span>
+                    </a>
+                    {% endif %}
+                {% endfor %}
+            </div>
+            {% endif %}
+        </nav>
+
+        <div class="sidebar-footer">
+            {% if branding.footer_links %}
+            <div class="footer-links">
+                {% for l in branding.footer_links %}
+                    {% if l.style == 'button' %}
+                    <a class="btn btn-ghost btn-sm" href="{{ l.url }}"{% if l.new_tab %} target="_blank" rel="noopener"{% endif %}>{{ l.label }}</a>
+                    {% else %}
+                    <a class="footer-link-text" href="{{ l.url }}"{% if l.new_tab %} target="_blank" rel="noopener"{% endif %}>{{ l.label }}</a>
+                    {% endif %}
+                {% endfor %}
+            </div>
+            {% endif %}
+            <div class="footer-row">
+                <div class="grow"><div class="sidebar-meta" id="syncMeta"></div></div>
+                <button class="icon-btn" id="themeBtn" onclick="toggleTheme()" title="Toggle theme">
+                    <svg id="iconSun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+                    <svg id="iconMoon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+                </button>
+            </div>
+        </div>
+    </aside>
+
+    <div class="main-wrapper">
+        <div class="content">
+            <div class="page-head">
+                <div>
+                    <div class="eyebrow">{{ branding.site_name }}</div>
+                    <div class="page-title" id="pageTitle">All Documents</div>
+                    <div class="page-sub" id="pageSub"></div>
+                </div>
+                <div class="head-tools">
+                    <button class="search-launch" onclick="openCmdk()">
+                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+                        Search
+                        <span class="kbd-chip">⌘K</span>
+                    </button>
+                    <div class="view-toggle" role="tablist" aria-label="View">
+                        <span class="view-pill" id="viewPill"></span>
+                        <button class="seg" id="viewCards" onclick="setView('cards')">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+                            Cards
+                        </button>
+                        <button class="seg" id="viewTable" onclick="setView('table')">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+                            List
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div id="resultsArea"><div class="spinner"></div></div>
+        </div>
+    </div>
+</div>
+
+<!-- Command palette -->
+<div class="cmdk-overlay" id="cmdk" onclick="if(event.target===this)closeCmdk()">
+    <div class="cmdk">
+        <div class="cmdk-input-wrap">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+            <input class="cmdk-input" id="cmdkInput" type="text" placeholder="Search guides, sheets, diagrams, fitment, part numbers…" autocomplete="off">
+            <span class="cmdk-kbd">esc</span>
+        </div>
+        <div class="cmdk-results" id="cmdkResults"></div>
+        <div class="cmdk-foot"><span><span class="cmdk-kbd">↑↓</span> navigate</span><span><span class="cmdk-kbd">↵</span> open</span><span><span class="cmdk-kbd">esc</span> close</span></div>
+    </div>
+</div>
+
+<!-- Document detail -->
+<div class="modal-overlay" id="docModal" onclick="if(event.target===this)closeDoc()">
+    <div class="modal">
+        <div class="modal-header"><h2 id="docModalTitle">Document</h2><button class="modal-close" onclick="closeDoc()">&times;</button></div>
+        <div class="modal-body" id="docModalBody"></div>
+    </div>
+</div>
+
+<div class="toast-wrap" id="toasts"></div>
+
+<script>
+/* List is the default view; a visitor who picks Cards keeps that choice. */
+let CATS = [], UNCAT = 0, DOCS = [], currentCat = 'all', viewMode = 'table';
+let cmdkTimer = null, cmdkResults = [], cmdkSel = -1;
+
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function safeUrl(u){ u=String(u||''); return /^(https?:|mailto:|tel:|\/|#)/i.test(u) ? u : '#'; }
+function toast(m,t='success'){ const w=document.getElementById('toasts'),e=document.createElement('div');e.className='toast '+t;e.textContent=m;w.appendChild(e);setTimeout(()=>e.remove(),3000); }
+
+/* ── Theme ── */
+function applyThemeIcons(){ const d=document.documentElement.getAttribute('data-theme')==='dark'; document.getElementById('iconSun').style.display=d?'none':''; document.getElementById('iconMoon').style.display=d?'':'none'; }
+function toggleTheme(){ const cur=document.documentElement.getAttribute('data-theme')||'light',n=cur==='dark'?'light':'dark'; document.documentElement.setAttribute('data-theme',n); try{localStorage.setItem('wmkb-theme',n);}catch(e){} applyThemeIcons(); }
+applyThemeIcons();
+
+/* ── Sidebar (mobile) ── */
+function toggleSidebar(force){ const sb=document.getElementById('sidebar'),sc=document.getElementById('scrim'); const open=force===undefined?!sb.classList.contains('open'):force; sb.classList.toggle('open',open); sc.classList.toggle('show',open); }
+
+/* ── Icons ── */
+const FILE_ICON = '<svg class="kb-thumb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>';
+const SMALL_FILE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>';
+
+/* ── Fitment + parts ── */
+function fitList(d){ return (d.vehicle_fitment||'').split(',').map(s=>s.trim()).filter(Boolean); }
+function partChips(d, cls){
+    return (d.associated_parts||[]).map(p=>{
+        const label = esc(p.number || p.url);
+        if (p.url) return `<a class="${cls} part" href="${esc(safeUrl(p.url))}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${label}</a>`;
+        return `<span class="${cls} part">${label}</span>`;
+    }).join('');
+}
+
+/* ── Data ── */
+async function loadCategories(){
+    try {
+        const d = await (await fetch('/api/kb/categories')).json();
+        CATS = d.categories || []; UNCAT = d.uncategorized_count || 0;
+        renderNav();
+    } catch(e){ toast('Could not load categories','error'); }
+}
+function totalDocs(){ return CATS.reduce((a,c)=>a+(c.doc_count||0),0)+UNCAT; }
+
+function renderNav(){
+    const el = document.getElementById('navItems');
+    let html = navItem('all','All Documents', totalDocs(), gridIco());
+    CATS.forEach(c=>{ html += navItem(String(c.id), c.name, c.doc_count, folderIco()); });
+    if (UNCAT > 0) html += navItem('null','Uncategorized', UNCAT, folderIco());
+    el.innerHTML = html;
+}
+function navItem(id,label,count,ico){
+    return `<button class="nav-item ${id===currentCat?'active':''}" data-cat="${esc(id)}" onclick="selectCat('${esc(id)}')">
+        ${ico}<span class="nav-label">${esc(label)}</span><span class="nav-count">${count||0}</span></button>`;
+}
+function gridIco(){ return '<svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>'; }
+function folderIco(){ return '<svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>'; }
+
+function selectCat(id){
+    currentCat = id;
+    document.querySelectorAll('.nav-item[data-cat]').forEach(n=>n.classList.toggle('active', n.dataset.cat===id));
+    const c = CATS.find(x=>String(x.id)===id);
+    document.getElementById('pageTitle').textContent = id==='all'?'All Documents':(id==='null'?'Uncategorized':(c?c.name:'Documents'));
+    toggleSidebar(false);
+    loadDocs();
+}
+
+async function loadDocs(){
+    const area = document.getElementById('resultsArea');
+    area.innerHTML = '<div class="spinner"></div>';
+    const params = new URLSearchParams();
+    if (currentCat !== 'all') params.set('category_id', currentCat);
+    try {
+        const d = await (await fetch('/api/kb/documents?'+params.toString())).json();
+        DOCS = d.documents || [];
+        renderDocs();
+    } catch(e){ area.innerHTML = '<div class="empty-state"><h3>Something went wrong</h3><p>Could not load documents.</p></div>'; }
+}
+
+/* ── View toggle ── */
+function setView(mode, persist){
+    viewMode = (mode==='table')?'table':'cards';
+    // Only an explicit click saves a preference — otherwise merely loading the
+    // page would pin today's default and a future change wouldn't reach anyone.
+    if (persist !== false) { try{ localStorage.setItem('wmkb-view', viewMode); }catch(e){} }
+    document.getElementById('viewCards').classList.toggle('active', viewMode==='cards');
+    document.getElementById('viewTable').classList.toggle('active', viewMode==='table');
+    positionViewPill();
+    renderDocs();
+}
+function positionViewPill(){
+    const active = document.querySelector('.seg.active'), pill = document.getElementById('viewPill');
+    if (active && pill){ pill.style.left = active.offsetLeft+'px'; pill.style.width = active.offsetWidth+'px'; }
+}
+window.addEventListener('resize', positionViewPill);
+
+function renderDocs(){
+    const area = document.getElementById('resultsArea');
+    document.getElementById('pageSub').textContent = `${DOCS.length} ${DOCS.length===1?'document':'documents'} to explore`;
+    if (!DOCS.length){
+        area.innerHTML = `<div class="empty-state">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+            <h3>Nothing here yet</h3><p>There are no documents in this category.</p></div>`;
+        return;
+    }
+    area.innerHTML = viewMode==='table' ? tableHtml() : ('<div class="card-grid">'+DOCS.map(cardHtml).join('')+'</div>');
+}
+
+function cardHtml(d, i){
+    const cat = CATS.find(c=>c.id===d.category_id);
+    const thumb = d.has_featured ? `<img src="${esc(d.featured_url)}" alt="" loading="lazy">` : FILE_ICON;
+    let chips = '';
+    fitList(d).slice(0,3).forEach(f=> chips += `<span class="chip">${esc(f)}</span>`);
+    chips += partChips({associated_parts:(d.associated_parts||[]).slice(0,3)}, 'chip');
+    return `<article class="kb-card" style="--i:${i}" onclick="openDoc(${d.id})">
+        <div class="kb-thumb">${thumb}${d.ext?`<span class="kb-ext-badge">${esc(d.ext)}</span>`:''}</div>
+        <div class="kb-card-body">
+            ${cat?`<div class="kb-card-cat">${esc(cat.name)}</div>`:''}
+            <div class="kb-card-title">${esc(d.title)}</div>
+            ${d.description?`<div class="kb-card-desc">${esc(d.description.replace(/<[^>]+>/g,' '))}</div>`:''}
+            ${chips?`<div class="chip-row">${chips}</div>`:''}
+        </div></article>`;
+}
+
+function tableHtml(){
+    const rows = DOCS.map(d=>{
+        const cat = CATS.find(c=>c.id===d.category_id);
+        const thumb = d.has_featured ? `<img src="${esc(d.featured_url)}" alt="">` : SMALL_FILE;
+        const fit = fitList(d).slice(0,4).map(f=>`<span class="mini-chip">${esc(f)}</span>`).join('') || '<span class="cell-muted">—</span>';
+        const parts = (d.associated_parts||[]).slice(0,4).map(p=>{
+            const lbl=esc(p.number||p.url);
+            return p.url ? `<a class="mini-chip part" href="${esc(safeUrl(p.url))}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${lbl}</a>` : `<span class="mini-chip part">${lbl}</span>`;
+        }).join('') || '<span class="cell-muted">—</span>';
+        const dl = d.has_file ? `<a class="btn btn-ghost btn-sm" href="${esc(d.download_url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">Open</a>` : '';
+        return `<tr onclick="openDoc(${d.id})">
+            <td><div class="idx-title"><div class="idx-thumb">${thumb}</div><div class="idx-title-text">${esc(d.title)}</div></div></td>
+            <td>${cat?esc(cat.name):'<span class="cell-muted">Uncategorized</span>'}</td>
+            <td>${fit}</td>
+            <td>${parts}</td>
+            <td><span class="mini-chip">${esc((d.ext||'').toUpperCase()||'—')}</span></td>
+            <td style="text-align:right;">${dl}</td>
+        </tr>`;
+    }).join('');
+    return `<div class="index-wrap"><table class="index-table">
+        <thead><tr><th>Document</th><th>Category</th><th>Vehicle fitment</th><th>Parts</th><th>Type</th><th></th></tr></thead>
+        <tbody>${rows}</tbody></table></div>`;
+}
+
+/* ── Detail ── */
+async function openDoc(id){
+    let d = DOCS.find(x=>x.id===id);
+    if (!d){ try { d = await (await fetch('/api/kb/documents/'+id)).json(); } catch(e){ return; } }
+    if (!d || d.error) return;
+    document.getElementById('docModalTitle').textContent = d.title;
+    const cat = CATS.find(c=>c.id===d.category_id);
+    const fit = fitList(d);
+    let body = '';
+    if (d.has_featured) body += `<img class="detail-banner" src="${esc(d.featured_url)}" alt="">`;
+    let meta = '';
+    if (cat) meta += `<div><div class="mk">Category</div><div class="mv">${esc(cat.name)}</div></div>`;
+    if (d.original_name) meta += `<div><div class="mk">File</div><div class="mv">${esc(d.original_name)}</div></div>`;
+    if (d.file_size) meta += `<div><div class="mk">Size</div><div class="mv">${fmtSize(d.file_size)}</div></div>`;
+    if (meta) body += `<div class="detail-meta">${meta}</div>`;
+    if (d.description) body += `<div style="font-size:0.96rem;line-height:1.7;color:var(--ink-soft);margin:0.6rem 0 1.3rem;">${d.description}</div>`;
+    if (fit.length) body += `<div style="margin-bottom:1.3rem;"><div class="detail-label">Vehicle Fitment</div><div class="chip-row">${fit.map(f=>`<span class="chip">${esc(f)}</span>`).join('')}</div></div>`;
+    if ((d.associated_parts||[]).length) body += `<div style="margin-bottom:1.3rem;"><div class="detail-label">Associated Parts</div><div class="chip-row">${partChips(d,'chip')}</div></div>`;
+    if (d.has_file){
+        body += `<div style="display:flex;gap:0.6rem;margin:0.5rem 0 1.3rem;flex-wrap:wrap;"><a class="btn btn-primary" href="${esc(d.download_url)}" target="_blank" rel="noopener">Download document</a></div>`;
+        if (['pdf','png','jpg','jpeg','gif','webp','svg'].includes((d.ext||'').toLowerCase()))
+            body += `<iframe class="preview-frame" src="${esc(d.download_url)}" title="Preview"></iframe>`;
+    }
+    document.getElementById('docModalBody').innerHTML = body;
+    document.getElementById('docModal').classList.add('active');
+    history.replaceState(null,'','#doc-'+id);
+}
+function closeDoc(){ document.getElementById('docModal').classList.remove('active'); history.replaceState(null,'',location.pathname); }
+function fmtSize(b){ if(!b) return ''; const u=['B','KB','MB','GB']; let i=0,n=b; while(n>=1024&&i<u.length-1){n/=1024;i++;} return n.toFixed(n<10&&i>0?1:0)+' '+u[i]; }
+
+/* ── Command palette (live search) ── */
+function openCmdk(){ toggleSidebar(false); const o=document.getElementById('cmdk'); o.classList.add('active'); const i=document.getElementById('cmdkInput'); i.value=''; cmdkResults=[]; cmdkSel=-1; renderCmdk('Start typing to search the knowledge base.'); setTimeout(()=>i.focus(),30); }
+function closeCmdk(){ document.getElementById('cmdk').classList.remove('active'); }
+function renderCmdk(emptyMsg){
+    const el = document.getElementById('cmdkResults');
+    if (!cmdkResults.length){ el.innerHTML = `<div class="cmdk-empty">${esc(emptyMsg||'No matches.')}</div>`; return; }
+    el.innerHTML = cmdkResults.map((d,i)=>{
+        const cat = CATS.find(c=>c.id===d.category_id);
+        const sub = [cat?cat.name:'', d.vehicle_fitment||''].filter(Boolean).join(' · ');
+        const thumb = d.has_featured ? `<img src="${esc(d.featured_url)}" alt="">` : SMALL_FILE;
+        return `<div class="cmdk-item ${i===cmdkSel?'sel':''}" data-i="${i}" onclick="pickCmdk(${i})" onmousemove="cmdkHover(${i})">
+            <div class="cmdk-item-thumb">${thumb}</div>
+            <div class="cmdk-item-main"><div class="cmdk-item-title">${esc(d.title)}</div>${sub?`<div class="cmdk-item-sub">${esc(sub)}</div>`:''}</div>
+            ${d.ext?`<span class="mini-chip">${esc(d.ext.toUpperCase())}</span>`:''}
+        </div>`;
+    }).join('');
+}
+async function runCmdk(q){
+    if (!q.trim()){ cmdkResults=[]; cmdkSel=-1; renderCmdk('Start typing to search the knowledge base.'); return; }
+    try {
+        const d = await (await fetch('/api/kb/documents?q='+encodeURIComponent(q))).json();
+        cmdkResults = (d.documents||[]).slice(0,40); cmdkSel = cmdkResults.length?0:-1;
+        renderCmdk('No matches for “'+q+'”.');
+    } catch(e){ cmdkResults=[]; renderCmdk('Search error.'); }
+}
+function cmdkHover(i){ cmdkSel=i; document.querySelectorAll('.cmdk-item').forEach(el=>el.classList.toggle('sel', +el.dataset.i===i)); }
+function pickCmdk(i){ const d=cmdkResults[i]; if(!d) return; closeCmdk(); openDoc(d.id); }
+document.getElementById('cmdkInput').addEventListener('input', e=>{ clearTimeout(cmdkTimer); const q=e.target.value; cmdkTimer=setTimeout(()=>runCmdk(q),180); });
+document.getElementById('cmdkInput').addEventListener('keydown', e=>{
+    if (e.key==='ArrowDown'){ e.preventDefault(); if(cmdkResults.length){ cmdkSel=(cmdkSel+1)%cmdkResults.length; renderCmdk(); scrollSel(); } }
+    else if (e.key==='ArrowUp'){ e.preventDefault(); if(cmdkResults.length){ cmdkSel=(cmdkSel-1+cmdkResults.length)%cmdkResults.length; renderCmdk(); scrollSel(); } }
+    else if (e.key==='Enter'){ e.preventDefault(); if(cmdkSel>=0) pickCmdk(cmdkSel); }
+});
+function scrollSel(){ const el=document.querySelector('.cmdk-item.sel'); if(el) el.scrollIntoView({block:'nearest'}); }
+
+/* ── Global keys ── */
+document.addEventListener('keydown', e=>{
+    if ((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='k'){ e.preventDefault(); openCmdk(); return; }
+    if (e.key==='/' && !/^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)){ e.preventDefault(); openCmdk(); return; }
+    if (e.key==='Escape'){ closeCmdk(); closeDoc(); }
+});
+
+/* ── Init ── */
+(async function init(){
+    try { const v=localStorage.getItem('wmkb-view'); if(v==='table'||v==='cards') viewMode=v; } catch(e){}
+    setView(viewMode, false);
+    await loadCategories();
+    await loadDocs();
+    {% if branding.last_sync %}document.getElementById('syncMeta').textContent = 'Updated {{ branding.last_sync[:10] }}';{% endif %}
+    const m = location.hash.match(/^#doc-(\d+)$/);
+    if (m) openDoc(parseInt(m[1]));
+})();
+</script>
+</body>
+</html>

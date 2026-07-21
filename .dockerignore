@@ -1,0 +1,12 @@
+.git
+.venv
+__pycache__
+*.pyc
+.env
+data
+cache
+branding
+*.db
+*.db-*
+.secret_key
+.migration_lock

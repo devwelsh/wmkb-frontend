@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.env
+.secret_key
+wmkb.db
+wmkb.db-*
+.migration_lock
+cache/
+branding/
+data/
+.venv/
