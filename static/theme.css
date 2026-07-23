@@ -86,7 +86,7 @@ svg { display: block; }
     display: flex; align-items: center; gap: 0.7rem; padding: 1.15rem 1.15rem 0.9rem;
     border-bottom: 1px solid var(--border);
 }
-.sidebar-logo img { max-height: 40px; max-width: 150px; width: auto; height: auto; }
+.sidebar-logo img { max-height: 38px; max-width: 64px; width: auto; height: auto; flex-shrink: 0; }
 .sidebar-logo-fallback {
     width: 38px; height: 38px; border-radius: 10px; flex-shrink: 0;
     background: linear-gradient(135deg, var(--accent) 0%, #2e6bff 100%);
@@ -292,9 +292,6 @@ svg { display: block; }
 .toast.success { background: var(--yes); }
 .toast.error { background: var(--danger); }
 @keyframes toastin { from { opacity: 0; transform: translateX(20px); } }
-
-/* ── Sidebar logo (name beside logo) ── */
-.sidebar-logo-img { max-height: 38px; max-width: 64px; width: auto; height: auto; flex-shrink: 0; }
 
 /* ── Custom sidebar links ── */
 .sidebar-links { display: flex; flex-direction: column; gap: 4px; padding: 0 0.05rem; }

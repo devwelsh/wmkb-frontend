@@ -194,6 +194,14 @@
     </div>
 </div>
 
+<!-- Fullscreen image lightbox -->
+<div class="lightbox" id="lightbox" onclick="if(event.target===this)closeLightbox()">
+    <button class="lightbox-btn lightbox-close" onclick="closeLightbox()" aria-label="Close">&times;</button>
+    <button class="lightbox-btn lightbox-prev" id="lbPrev" onclick="stepLightbox(-1);event.stopPropagation()" aria-label="Previous image">&#8249;</button>
+    <img id="lightboxImg" src="" alt="">
+    <button class="lightbox-btn lightbox-next" id="lbNext" onclick="stepLightbox(1);event.stopPropagation()" aria-label="Next image">&#8250;</button>
+</div>
+
 <div class="toast-wrap" id="toasts"></div>
 
 <script>
@@ -391,13 +399,21 @@ async function openDoc(id, opts){
     if ((d.associated_parts||[]).length) meta += `<div class="meta-fit"><div class="mk">Associated Parts</div><div class="mv meta-chips">${partChips(d,'chip')}</div></div>`;
     if (meta) body += `<div class="detail-meta">${meta}</div>`;
     if (d.description) body += `<div style="font-size:0.96rem;line-height:1.7;color:var(--ink-soft);margin:0.6rem 0 1.3rem;">${d.description}</div>`;
-    if (d.has_featured) body += `<img class="detail-banner" src="${esc(d.featured_url)}" alt="">`;
+    // Images (featured + an image file) render as a thumbnail grid feeding the
+    // lightbox; only PDFs keep the inline preview frame.
+    LB_IMAGES = [];
+    if (d.has_featured) LB_IMAGES.push(d.featured_url);
+    const isImageFile = d.has_file && ['png','jpg','jpeg','gif','webp','svg'].includes((d.ext||'').toLowerCase());
+    if (isImageFile) LB_IMAGES.push(d.download_url);
+    if (LB_IMAGES.length)
+        body += `<div class="detail-images">${LB_IMAGES.map((src,i)=>
+            `<button class="detail-thumb" onclick="openLightbox(${i})" aria-label="View image full screen"><img src="${esc(src)}" alt="" loading="lazy"></button>`).join('')}</div>`;
     // The download button lives in the header alongside Copy link.
     const dl = document.getElementById('docDownload');
     dl.hidden = !d.has_file;
     if (d.has_file){
         dl.href = d.download_url;
-        if (['pdf','png','jpg','jpeg','gif','webp','svg'].includes((d.ext||'').toLowerCase()))
+        if ((d.ext||'').toLowerCase() === 'pdf')
             body += `<iframe class="preview-frame" src="${esc(d.download_url)}" title="Preview"></iframe>`;
     } else {
         dl.removeAttribute('href');
@@ -423,6 +439,22 @@ function closeDoc(opts){
     if (docPushed){ docPushed = false; history.back(); return; }
     setUrl(catPath(currentCat), {cat:currentCat, doc:null}, true);
     setPageTitle(currentCat==='all' ? SITE_NAME : catName(currentCat)+' · '+SITE_NAME);
+}
+
+/* ── Lightbox ── */
+let LB_IMAGES = [], lbIndex = 0;
+function openLightbox(i){
+    lbIndex = i;
+    updateLightbox();
+    document.getElementById('lightbox').classList.add('open');
+}
+function closeLightbox(){ document.getElementById('lightbox').classList.remove('open'); }
+function stepLightbox(dir){ lbIndex = (lbIndex + dir + LB_IMAGES.length) % LB_IMAGES.length; updateLightbox(); }
+function updateLightbox(){
+    document.getElementById('lightboxImg').src = LB_IMAGES[lbIndex] || '';
+    const multi = LB_IMAGES.length > 1;
+    document.getElementById('lbPrev').hidden = !multi;
+    document.getElementById('lbNext').hidden = !multi;
 }
 
 /* ── Sharing ── */
@@ -504,6 +536,13 @@ function scrollSel(){ const el=document.querySelector('.cmdk-item.sel'); if(el) 
 document.addEventListener('keydown', e=>{
     if ((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='k'){ e.preventDefault(); openCmdk(); return; }
     if (e.key==='/' && !/^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)){ e.preventDefault(); openCmdk(); return; }
+    const lb = document.getElementById('lightbox');
+    if (lb.classList.contains('open')){
+        if (e.key==='Escape') closeLightbox();
+        if (e.key==='ArrowLeft') stepLightbox(-1);
+        if (e.key==='ArrowRight') stepLightbox(1);
+        return;
+    }
     if (e.key==='Escape'){ closeCmdk(); closeDoc(); }
 });
 

@@ -27,9 +27,9 @@
     <div class="scrim" id="scrim" onclick="toggleSidebar(false)"></div>
     <aside class="sidebar" id="sidebar">
         <div class="sidebar-logo">
-            {% if branding.admin_logo %}<img src="/branding/admin_logo" alt="{{ branding.admin_name }}">
-            {% else %}<div class="sidebar-logo-fallback">{{ branding.admin_name[:1]|upper }}</div>
-            <div class="sidebar-logo-text"><div class="sidebar-logo-name">{{ branding.admin_name }}</div><div class="sidebar-logo-sub">Admin</div></div>{% endif %}
+            {% if branding.admin_logo %}<img class="sidebar-logo-img" src="/branding/admin_logo" alt="">
+            {% else %}<div class="sidebar-logo-fallback">{{ branding.admin_name[:1]|upper }}</div>{% endif %}
+            <div class="sidebar-logo-text"><div class="sidebar-logo-name">{{ branding.admin_name }}</div><div class="sidebar-logo-sub">Admin</div></div>
         </div>
         <nav class="sidebar-nav">
             <div class="nav-section-label">Manage</div>

@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.1.6
+- The dark backdrop behind the document window no longer blurs the page — it's a plain darkened overlay now.
+- Images in the document window (the featured image and image-type documents) show as a grid of thumbnails instead of full-width, with a full-screen lightbox on click — arrow keys / on-screen arrows move between images, Esc or a click outside closes. PDFs keep their inline preview.
+
+## v1.1.5
+- Uploading an admin logo no longer hides the Admin Area Name in the admin sidebar. The logo now replaces only the letter-mark tile, with the name and "Admin" label always shown beside it (logo capped at 64px wide so the name keeps its room).
+
 ## v1.1.4
 - On phones, the logo and site name now sit at the top of the page itself — centered on the same line as the menu button — instead of inside the slide-out sidebar, so the branding is visible without opening the menu. The tagline stays in the sidebar, above the search box. The site-name eyebrow above the category heading is hidden on phones — the brand line right above it already says the same thing.
 
