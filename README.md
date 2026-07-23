@@ -91,12 +91,57 @@ mkdir -p /opt/wmkb && cd /opt/wmkb
 curl -O https://raw.githubusercontent.com/viibeware/wmkb-frontend/main/docker-compose.prod.yml
 ```
 
-It defines two services that share one data volume:
+Or create it by hand — this is the whole file:
+
+```yaml
+# docker-compose.prod.yml
+services:
+  wmkb-frontend:
+    image: viibeware/wmkb-frontend:latest
+    container_name: wmkb-frontend
+    restart: unless-stopped
+    ports:
+      - "${WMKB_PORT:-5070}:5000"
+    volumes:
+      - wmkb-data:/data
+    environment:
+      - SECRET_KEY=${SECRET_KEY:-}
+      - WMKB_DATA_DIR=/data
+      - WMKB_SECURE_COOKIES=${WMKB_SECURE_COOKIES:-1}
+
+  # Scheduled sync runs as its own process (no in-web-worker scheduler election).
+  # Shares the same image and data volume; it is the single DB writer for KB
+  # content while the web workers are readers.
+  wmkb-sync:
+    image: viibeware/wmkb-frontend:latest
+    container_name: wmkb-sync
+    restart: unless-stopped
+    command: ["python", "sync.py"]
+    volumes:
+      - wmkb-data:/data
+    environment:
+      - SECRET_KEY=${SECRET_KEY:-}
+      - WMKB_DATA_DIR=/data
+    depends_on:
+      - wmkb-frontend
+
+volumes:
+  wmkb-data:
+```
+
+Two services sharing one data volume:
 
 | Service | What it does |
 |---|---|
-| `wmkb-frontend` | The public website + admin area (gunicorn, 2 workers). Publishes the port. |
-| `wmkb-sync` | The scheduled sync process. Same image, no port, runs `python sync.py`. |
+| `wmkb-frontend` | The public website + admin area (gunicorn, 2 workers). The only one that publishes a port. |
+| `wmkb-sync` | The scheduled sync process. Same image, no port, runs `python sync.py` instead of the web server. |
+
+`${WMKB_PORT:-5070}` and friends are Compose's own substitution syntax: the
+value comes from your `.env` (next step), and the part after `:-` is the
+fallback when it isn't set. The container always listens on **5000** internally
+— `WMKB_PORT` only changes the host side of the mapping. Pin a specific release
+instead of `latest` by replacing both `image:` lines with e.g.
+`viibeware/wmkb-frontend:1.1.0`.
 
 ### 3. Create your `.env`
 
@@ -211,9 +256,11 @@ With TLS working, make sure `WMKB_SECURE_COOKIES=1` in `.env` and re-run
 
 ## Option B — install from source
 
-Use this if you want to modify the app or build the image yourself. The only
-difference is that `docker-compose.yml` builds from the repo rather than pulling
-a published image; `.env` and the setup wizard work exactly as above.
+Use this if you want to modify the app or build the image yourself. The repo's
+own `docker-compose.yml` is the same file as above with two changes: each
+service gets `build: .` so the image is built from the checkout rather than
+pulled, and `WMKB_SECURE_COOKIES` defaults to **off** instead of `1` (dev is
+usually plain http). `.env` and the setup wizard work exactly as above.
 
 ```bash
 git clone https://github.com/viibeware/wmkb-frontend.git
