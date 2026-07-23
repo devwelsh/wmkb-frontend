@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.1.1
+- The search shortcut chip now draws the ⌘ symbol as a bundled icon instead of relying on the visitor's fonts, which rendered it at the wrong size on Windows — and on Windows and Linux it now reads "Ctrl K" instead, matching the keys those visitors actually press (both Ctrl+K and ⌘K have always worked).
+- The search window (⌘K) now has a solid background instead of a frosted-glass one, so the page behind it no longer shows through the results.
+- Fixed the admin sidebar footer: the account name, version and the settings / theme / sign-out icon buttons were stacked vertically; they now sit in a single row as intended.
+- The sidebar header now centers the site name against the logo, with the tagline hanging below the name without pushing it out of line. The desktop sidebar is also slightly wider (286px → 320px) so longer site names fit on a single line. On phones the sidebar still slides in as an overlay and is capped so it never covers the whole screen.
+
 ## v1.1.0
 - **Every document now has its own readable address**, built from its category and its name: `/kb/instructions-and-guides/of19a-instructions` instead of a `#doc-41` fragment on the home page. Categories are pages too (`/kb/diagrams`), and each one is a real, linkable URL — reload it, bookmark it, or send it to someone and they land on exactly that document.
 - Each of those addresses is served with its own `<title>`, description, canonical link, Open Graph / Twitter card and schema.org data, so a shared link previews as the document itself rather than as the site, and search engines index the documents individually. A `/sitemap.xml` lists every category and document, and `/robots.txt` points at it.

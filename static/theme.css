@@ -133,9 +133,8 @@ svg { display: block; }
 /* ── Sidebar footer ── */
 .sidebar-footer {
     border-top: 1px solid var(--border); padding: 0.7rem 0.85rem;
-    display: flex; flex-direction: column; gap: 0.55rem;
+    display: flex; align-items: center; gap: 0.5rem;
 }
-.footer-row { display: flex; align-items: center; gap: 0.5rem; }
 .sidebar-footer .grow { flex: 1; min-width: 0; }
 .footer-links { display: flex; flex-wrap: wrap; gap: 6px; }
 .footer-link-text { font-size: 0.78rem; color: var(--text-secondary); transition: color var(--transition); }

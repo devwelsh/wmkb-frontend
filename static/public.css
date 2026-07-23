@@ -13,7 +13,7 @@
 :root {
     --font-display: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
     --font-body: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-    --sidebar-w: 286px;
+    --sidebar-w: 320px;
     --radius-sm: 12px;
     --radius: 18px;
     --radius-lg: 26px;
@@ -135,19 +135,23 @@ body::after {
 }
 .main-wrapper { flex: 1; min-width: 0; margin-left: var(--sidebar-w); }
 
-/* sidebar logo */
-.sidebar-logo { display: flex; align-items: center; gap: 0.8rem; padding: 1.6rem 1.5rem 1.2rem; }
-.sidebar-logo-img { max-height: 42px; max-width: 120px; width: auto; height: auto; flex-shrink: 0; }
+/* sidebar logo: logo in col 1 row 1 only, so the title centers against it
+   and the tagline hangs below without pushing the title up */
+.sidebar-logo {
+    display: grid; grid-template-columns: auto 1fr; align-items: center;
+    column-gap: 0.8rem; padding: 1.6rem 1.5rem 1.2rem;
+}
+.sidebar-logo-img { grid-row: 1; grid-column: 1; max-height: 42px; max-width: 120px; width: auto; height: auto; }
 .sidebar-logo-mark {
+    grid-row: 1; grid-column: 1;
     width: 46px; height: 46px; border-radius: 15px; flex-shrink: 0;
     background: linear-gradient(145deg, var(--accent), var(--accent-deep));
     box-shadow: 0 10px 22px -8px var(--accent), inset 0 1px 0 rgba(255,255,255,0.3);
     display: flex; align-items: center; justify-content: center;
     color: #fff; font-family: var(--font-display); font-weight: 600; font-size: 1.35rem;
 }
-.sidebar-logo-text { min-width: 0; }
-.sidebar-logo-name { font-family: var(--font-display); font-weight: 700; font-size: 1.16rem; line-height: 1.1; letter-spacing: -0.02em; }
-.sidebar-logo-sub { font-size: 0.72rem; color: var(--ink-mute); margin-top: 3px; line-height: 1.3; }
+.sidebar-logo-name { grid-row: 1; grid-column: 2; min-width: 0; font-family: var(--font-display); font-weight: 700; font-size: 1.16rem; line-height: 1.1; letter-spacing: -0.02em; }
+.sidebar-logo-sub { grid-row: 2; grid-column: 2; margin-top: 3px; font-size: 0.72rem; color: var(--ink-mute); line-height: 1.3; }
 
 /* sidebar search launcher */
 .sidebar-head { padding: 0.4rem 1.1rem 0.6rem; }
@@ -159,7 +163,8 @@ body::after {
     font-size: 0.86rem; transition: all var(--speed-fast) var(--ease);
 }
 .sidebar-search:hover { border-color: var(--accent); color: var(--ink-soft); box-shadow: 0 4px 16px -8px var(--accent); }
-.kbd-chip { margin-left: auto; font-size: 0.66rem; font-weight: 600; padding: 2px 7px; border: 1px solid var(--hairline); border-radius: 7px; color: var(--ink-mute); }
+.kbd-chip { margin-left: auto; display: inline-flex; align-items: center; gap: 3px; font-size: 0.66rem; font-weight: 600; padding: 2px 7px; border: 1px solid var(--hairline); border-radius: 7px; color: var(--ink-mute); }
+.kbd-chip .kbd-cmd { width: 10px; height: 10px; }
 
 /* nav */
 .sidebar-nav { flex: 1; overflow-y: auto; padding: 0.6rem 0.85rem 1rem; display: flex; flex-direction: column; }
@@ -359,7 +364,7 @@ a.mini-chip.part:hover { background: var(--accent); color: var(--on-accent); }
 /* ── Command palette ── */
 .cmdk-overlay { position: fixed; inset: 0; z-index: 300; display: flex; align-items: flex-start; justify-content: center; padding: 12vh 1.2rem 1.2rem; background: rgba(16, 28, 24, 0.34); backdrop-filter: blur(6px); opacity: 0; pointer-events: none; transition: opacity var(--speed-fast) var(--ease); }
 .cmdk-overlay.active { opacity: 1; pointer-events: all; }
-.cmdk { width: 100%; max-width: 660px; border-radius: var(--radius-lg); overflow: hidden; background: var(--surface); backdrop-filter: blur(30px) saturate(1.5); -webkit-backdrop-filter: blur(30px) saturate(1.5); border: 1px solid var(--edge); box-shadow: var(--shadow-lg); transform: translateY(-14px) scale(0.98); transition: transform var(--speed) var(--ease); }
+.cmdk { width: 100%; max-width: 660px; border-radius: var(--radius-lg); overflow: hidden; background: var(--surface-solid); border: 1px solid var(--edge); box-shadow: var(--shadow-lg); transform: translateY(-14px) scale(0.98); transition: transform var(--speed) var(--ease); }
 .cmdk-overlay.active .cmdk { transform: none; }
 .cmdk-input-wrap { display: flex; align-items: center; gap: 0.8rem; padding: 1.15rem 1.3rem; border-bottom: 1px solid var(--hairline); color: var(--accent); }
 .cmdk-input { flex: 1; border: none; background: none; outline: none; color: var(--ink); font-family: var(--font-body); font-size: 1.08rem; letter-spacing: -0.01em; }
@@ -425,7 +430,7 @@ a.mini-chip.part:hover { background: var(--accent); color: var(--on-accent); }
 .scrim.show { opacity: 1; pointer-events: all; }
 .mobile-menu { display: none; }
 @media (max-width: 900px) {
-    .sidebar { transform: translateX(-100%); box-shadow: var(--shadow-lg); }
+    .sidebar { transform: translateX(-100%); box-shadow: var(--shadow-lg); max-width: 86vw; }
     .sidebar.open { transform: translateX(0); }
     .main-wrapper { margin-left: 0; }
     .content { padding: 4.2rem 1.2rem 4rem; }
