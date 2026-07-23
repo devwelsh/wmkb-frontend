@@ -55,6 +55,7 @@
             {% if branding.tagline %}<div class="sidebar-logo-sub">{{ branding.tagline }}</div>{% endif %}
         </div>
 
+        {% if branding.tagline %}<div class="sidebar-tagline">{{ branding.tagline }}</div>{% endif %}
         <div class="sidebar-head">
             <button class="sidebar-search" onclick="openCmdk()">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
@@ -107,6 +108,14 @@
 
     <div class="main-wrapper">
         <div class="content">
+            <div class="sidebar-logo mobile-brand">
+                {% if branding.frontend_logo %}
+                    <img class="sidebar-logo-img" src="/branding/frontend_logo" alt="{{ branding.site_name }}">
+                {% else %}
+                    <div class="sidebar-logo-mark">{{ branding.site_name[:1]|upper }}</div>
+                {% endif %}
+                <div class="sidebar-logo-name">{{ branding.site_name }}</div>
+            </div>
             <div class="page-head">
                 <div>
                     <div class="eyebrow">{{ branding.site_name }}</div>

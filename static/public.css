@@ -151,7 +151,12 @@ body::after {
     color: #fff; font-family: var(--font-display); font-weight: 600; font-size: 1.35rem;
 }
 .sidebar-logo-name { grid-row: 1; grid-column: 2; min-width: 0; font-family: var(--font-display); font-weight: 700; font-size: 1.16rem; line-height: 1.1; letter-spacing: -0.02em; }
-.sidebar-logo-sub { grid-row: 2; grid-column: 2; margin-top: 3px; font-size: 0.72rem; color: var(--ink-mute); line-height: 1.3; }
+/* negative margin eats the slack under the title, whose row is as tall as the logo */
+.sidebar-logo-sub { grid-row: 2; grid-column: 2; margin-top: -4px; font-size: 0.72rem; color: var(--ink-mute); line-height: 1.3; }
+/* the content-area copy of the brand block exists only on mobile */
+.mobile-brand { display: none; }
+/* mobile-only tagline shown above the sidebar search once the brand moves out */
+.sidebar-tagline { display: none; }
 
 /* sidebar search launcher */
 .sidebar-head { padding: 0.4rem 1.1rem 0.6rem; }
@@ -419,7 +424,14 @@ a.mini-chip.part:hover { background: var(--accent); color: var(--on-accent); }
     .sidebar { transform: translateX(-100%); box-shadow: var(--shadow-lg); max-width: 86vw; }
     .sidebar.open { transform: translateX(0); }
     .main-wrapper { margin-left: 0; }
-    .content { padding: 4.2rem 1.2rem 4rem; }
+    .content { padding: 0.8rem 1.2rem 4rem; }
     .mobile-menu { display: inline-flex; position: fixed; top: 14px; left: 14px; z-index: 90; }
     .page-head { padding-top: 1rem; }
+    /* branding moves from the sidebar into the content on mobile;
+       indented past the fixed burger button so logo + title share its line */
+    .sidebar .sidebar-logo { display: none; }
+    .mobile-brand { display: grid; grid-template-columns: auto auto; justify-content: center; padding: 0 2.6rem; }
+    .eyebrow { display: none; }
+    .sidebar-tagline { display: block; padding: 2rem 1.5rem 0; font-size: 0.72rem; color: var(--ink-mute); line-height: 1.3; }
+    .sidebar-head { padding-top: 0.8rem; }
 }

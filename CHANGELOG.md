@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.1.4
+- On phones, the logo and site name now sit at the top of the page itself — centered on the same line as the menu button — instead of inside the slide-out sidebar, so the branding is visible without opening the menu. The tagline stays in the sidebar, above the search box. The site-name eyebrow above the category heading is hidden on phones — the brand line right above it already says the same thing.
+
 ## v1.1.3
 - In the document window, the featured image no longer sits above the details. The order is now: detail strip (category, fitment, file, size, parts), description, featured image, then the document preview.
 
