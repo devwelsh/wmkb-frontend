@@ -374,7 +374,6 @@ async function openDoc(id, opts){
     const cat = CATS.find(c=>c.id===d.category_id);
     const fit = fitList(d);
     let body = '';
-    if (d.has_featured) body += `<img class="detail-banner" src="${esc(d.featured_url)}" alt="">`;
     let meta = '';
     if (cat) meta += `<div><div class="mk">Category</div><div class="mv">${esc(cat.name)}</div></div>`;
     if (fit.length) meta += `<div class="meta-fit"><div class="mk">Vehicle Fitment</div><div class="mv">${fit.map(esc).join(' · ')}</div></div>`;
@@ -383,6 +382,7 @@ async function openDoc(id, opts){
     if ((d.associated_parts||[]).length) meta += `<div class="meta-fit"><div class="mk">Associated Parts</div><div class="mv meta-chips">${partChips(d,'chip')}</div></div>`;
     if (meta) body += `<div class="detail-meta">${meta}</div>`;
     if (d.description) body += `<div style="font-size:0.96rem;line-height:1.7;color:var(--ink-soft);margin:0.6rem 0 1.3rem;">${d.description}</div>`;
+    if (d.has_featured) body += `<img class="detail-banner" src="${esc(d.featured_url)}" alt="">`;
     // The download button lives in the header alongside Copy link.
     const dl = document.getElementById('docDownload');
     dl.hidden = !d.has_file;

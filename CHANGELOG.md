@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.1.3
+- In the document window, the featured image no longer sits above the details. The order is now: detail strip (category, fitment, file, size, parts), description, featured image, then the document preview.
+
 ## v1.1.2
 - Removed the Share button (and its drop-down of share targets) from the document window; **Copy link** stays and is the one way to pass a document around.
 - Removed the Search button from the page header — it duplicated the sidebar search box. The sidebar box and the ⌘K / Ctrl K shortcut both still open the search window.

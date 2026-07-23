@@ -28,7 +28,7 @@ from flask_login import (LoginManager, UserMixin, login_user, logout_user,
 from werkzeug.routing import BaseConverter
 from werkzeug.security import generate_password_hash, check_password_hash
 
-APP_VERSION = '1.1.2'
+APP_VERSION = '1.1.3'
 
 # ── Paths & config ────────────────────────────────────────────────────────
 DATA_DIR = os.environ.get('WMKB_DATA_DIR', os.path.dirname(os.path.abspath(__file__)))
