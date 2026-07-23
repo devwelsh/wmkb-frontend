@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.1.8
+- Lightbox zoom is now a single click: click zooms in at that point, click again zooms back out (was double-click). Dragging to pan never triggers the zoom toggle.
+
 ## v1.1.7
 - The image lightbox can now zoom: + / − buttons in the top-right corner, the scroll wheel (zooming toward the cursor), the + / − keys, or double-click to jump between fitted and 2.5×. When zoomed in, the image can be dragged to pan; switching image or reopening resets the view.
 

@@ -484,23 +484,25 @@ function lbZoomBy(f, cx, cy){ lbSetZoom(lbZoom * f, cx, cy); }
         e.preventDefault();
         lbZoomBy(e.deltaY < 0 ? 1.25 : 1/1.25, e.clientX, e.clientY);
     }, {passive: false});
-    img.addEventListener('dblclick', e => {
-        lbSetZoom(lbZoom > 1 ? 1 : 2.5, e.clientX, e.clientY);
-    });
-    let drag = null;
+    /* single click toggles zoom; a click that moved more than a few px is a
+       drag (pan when zoomed) and must not trigger the toggle */
+    let drag = null, dragMoved = false;
     img.addEventListener('pointerdown', e => {
-        if (lbZoom <= 1) return;
         drag = {x: e.clientX, y: e.clientY, panX: lbPanX, panY: lbPanY};
-        img.setPointerCapture(e.pointerId);
+        dragMoved = false;
+        if (lbZoom > 1) img.setPointerCapture(e.pointerId);
         e.preventDefault();
     });
     img.addEventListener('pointermove', e => {
         if (!drag) return;
-        lbPanX = drag.panX + (e.clientX - drag.x);
-        lbPanY = drag.panY + (e.clientY - drag.y);
-        lbApply();
+        const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+        if (Math.abs(dx) > 4 || Math.abs(dy) > 4) dragMoved = true;
+        if (lbZoom > 1 && dragMoved){ lbPanX = drag.panX + dx; lbPanY = drag.panY + dy; lbApply(); }
     });
-    img.addEventListener('pointerup', () => { drag = null; });
+    img.addEventListener('pointerup', e => {
+        if (drag && !dragMoved) lbSetZoom(lbZoom > 1 ? 1 : 2.5, e.clientX, e.clientY);
+        drag = null;
+    });
     img.addEventListener('pointercancel', () => { drag = null; });
 })();
 
