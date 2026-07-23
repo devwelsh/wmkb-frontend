@@ -196,9 +196,11 @@
 
 <!-- Fullscreen image lightbox -->
 <div class="lightbox" id="lightbox" onclick="if(event.target===this)closeLightbox()">
+    <button class="lightbox-btn lightbox-zoom-out" onclick="lbZoomBy(1/1.4);event.stopPropagation()" title="Zoom out" aria-label="Zoom out">&minus;</button>
+    <button class="lightbox-btn lightbox-zoom-in" onclick="lbZoomBy(1.4);event.stopPropagation()" title="Zoom in" aria-label="Zoom in">+</button>
     <button class="lightbox-btn lightbox-close" onclick="closeLightbox()" aria-label="Close">&times;</button>
     <button class="lightbox-btn lightbox-prev" id="lbPrev" onclick="stepLightbox(-1);event.stopPropagation()" aria-label="Previous image">&#8249;</button>
-    <img id="lightboxImg" src="" alt="">
+    <img id="lightboxImg" src="" alt="" draggable="false">
     <button class="lightbox-btn lightbox-next" id="lbNext" onclick="stepLightbox(1);event.stopPropagation()" aria-label="Next image">&#8250;</button>
 </div>
 
@@ -443,6 +445,7 @@ function closeDoc(opts){
 
 /* ── Lightbox ── */
 let LB_IMAGES = [], lbIndex = 0;
+let lbZoom = 1, lbPanX = 0, lbPanY = 0;
 function openLightbox(i){
     lbIndex = i;
     updateLightbox();
@@ -451,11 +454,55 @@ function openLightbox(i){
 function closeLightbox(){ document.getElementById('lightbox').classList.remove('open'); }
 function stepLightbox(dir){ lbIndex = (lbIndex + dir + LB_IMAGES.length) % LB_IMAGES.length; updateLightbox(); }
 function updateLightbox(){
+    lbZoom = 1; lbPanX = 0; lbPanY = 0; lbApply();
     document.getElementById('lightboxImg').src = LB_IMAGES[lbIndex] || '';
     const multi = LB_IMAGES.length > 1;
     document.getElementById('lbPrev').hidden = !multi;
     document.getElementById('lbNext').hidden = !multi;
 }
+function lbApply(){
+    const img = document.getElementById('lightboxImg');
+    img.style.transform = `translate(${lbPanX}px, ${lbPanY}px) scale(${lbZoom})`;
+    img.classList.toggle('zoomed', lbZoom > 1);
+}
+/* cx/cy (viewport px) keep that point of the image fixed while the scale changes */
+function lbSetZoom(z, cx, cy){
+    z = Math.min(6, Math.max(1, z));
+    if (cx !== undefined){
+        const px = cx - innerWidth/2, py = cy - innerHeight/2;
+        lbPanX = px - (px - lbPanX) * (z / lbZoom);
+        lbPanY = py - (py - lbPanY) * (z / lbZoom);
+    }
+    lbZoom = z;
+    if (lbZoom === 1){ lbPanX = 0; lbPanY = 0; }
+    lbApply();
+}
+function lbZoomBy(f, cx, cy){ lbSetZoom(lbZoom * f, cx, cy); }
+(function(){
+    const box = document.getElementById('lightbox'), img = document.getElementById('lightboxImg');
+    box.addEventListener('wheel', e => {
+        e.preventDefault();
+        lbZoomBy(e.deltaY < 0 ? 1.25 : 1/1.25, e.clientX, e.clientY);
+    }, {passive: false});
+    img.addEventListener('dblclick', e => {
+        lbSetZoom(lbZoom > 1 ? 1 : 2.5, e.clientX, e.clientY);
+    });
+    let drag = null;
+    img.addEventListener('pointerdown', e => {
+        if (lbZoom <= 1) return;
+        drag = {x: e.clientX, y: e.clientY, panX: lbPanX, panY: lbPanY};
+        img.setPointerCapture(e.pointerId);
+        e.preventDefault();
+    });
+    img.addEventListener('pointermove', e => {
+        if (!drag) return;
+        lbPanX = drag.panX + (e.clientX - drag.x);
+        lbPanY = drag.panY + (e.clientY - drag.y);
+        lbApply();
+    });
+    img.addEventListener('pointerup', () => { drag = null; });
+    img.addEventListener('pointercancel', () => { drag = null; });
+})();
 
 /* ── Sharing ── */
 function docShareUrl(){ return CURRENT_DOC ? location.origin + CURRENT_DOC.url : location.href; }
@@ -541,6 +588,8 @@ document.addEventListener('keydown', e=>{
         if (e.key==='Escape') closeLightbox();
         if (e.key==='ArrowLeft') stepLightbox(-1);
         if (e.key==='ArrowRight') stepLightbox(1);
+        if (e.key==='+' || e.key==='=') lbZoomBy(1.4);
+        if (e.key==='-') lbZoomBy(1/1.4);
         return;
     }
     if (e.key==='Escape'){ closeCmdk(); closeDoc(); }

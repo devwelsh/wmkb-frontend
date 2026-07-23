@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.1.7
+- The image lightbox can now zoom: + / − buttons in the top-right corner, the scroll wheel (zooming toward the cursor), the + / − keys, or double-click to jump between fitted and 2.5×. When zoomed in, the image can be dragged to pan; switching image or reopening resets the view.
+
 ## v1.1.6
 - The dark backdrop behind the document window no longer blurs the page — it's a plain darkened overlay now.
 - Images in the document window (the featured image and image-type documents) show as a grid of thumbnails instead of full-width, with a full-screen lightbox on click — arrow keys / on-screen arrows move between images, Esc or a click outside closes. PDFs keep their inline preview.
