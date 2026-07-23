@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.1.0
+- **Every document now has its own readable address**, built from its category and its name: `/kb/instructions-and-guides/of19a-instructions` instead of a `#doc-41` fragment on the home page. Categories are pages too (`/kb/diagrams`), and each one is a real, linkable URL — reload it, bookmark it, or send it to someone and they land on exactly that document.
+- Each of those addresses is served with its own `<title>`, description, canonical link, Open Graph / Twitter card and schema.org data, so a shared link previews as the document itself rather than as the site, and search engines index the documents individually. A `/sitemap.xml` lists every category and document, and `/robots.txt` points at it.
+- Vehicle fitment now sits in the document window's detail strip next to Category, File and Size instead of in a separate block underneath, so everything factual about the document is in one place. Associated parts stay below as links.
+- The document window's actions now sit together in its header: **Download document**, then **Share**, **Copy link** and close. The download button used to be halfway down the body, below the description and fitment chips, so on a long document you had to scroll to reach it. On phones it shrinks to its icon so the title keeps its room.
+- Added a **Share** button and a **Copy link** button to the document window. Share opens the device's own share sheet where one exists (phones, Safari, Edge) and otherwise drops down a small menu — Email, X, Facebook, LinkedIn, WhatsApp, Copy link. Copying works on plain-HTTP deployments too, not just HTTPS.
+- Document titles and category names in both views are real links now: hover to see where they go, middle-click or ⌘/Ctrl-click to open in a new tab. Clicking normally still opens the document window in place, and the browser's Back button closes it.
+- Old `#doc-<id>` links still work — they redirect to the new address. `/kb/<id>` is a permanent short link to any document, and moving a document to another category redirects its old URL instead of breaking it.
+- Crawlers and anyone browsing without JavaScript now get a plain list of documents (and the document's own text) at every URL instead of a blank page.
+
 ## v1.0.3
 - The public site now opens in **list view** by default instead of cards. A visitor who picks a view still keeps their own choice, and simply loading the page no longer counts as picking one — previously the first page load saved the current default as a preference, so a later change to the default would never have reached anyone.
 - `/admin/` with a trailing slash used to 404 instead of opening the admin, which read as "this app has no admin". It now works, as do `/admin/login/`, `/admin/setup/` and `/admin/logout/`.

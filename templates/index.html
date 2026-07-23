@@ -3,24 +3,31 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ branding.site_name }}</title>
-    <meta name="description" content="{{ branding.og_description }}">
+    <title>{{ page.title }}</title>
+    <meta name="description" content="{{ page.description }}">
     <meta name="theme-color" content="#2f74f0">
+    <link rel="canonical" id="canonicalLink" href="{{ page.canonical }}">
+    {% if page.robots %}<meta name="robots" content="{{ page.robots }}">{% endif %}
 
     {% if branding.favicon %}<link rel="icon" href="/branding/favicon">
     {% else %}<link rel="icon" type="image/png" href="/static/favicon.png">{% endif %}
     {% if branding.apple_touch_icon %}<link rel="apple-touch-icon" href="/branding/apple_touch_icon">{% endif %}
 
-    <meta property="og:type" content="website">
-    <meta property="og:title" content="{{ branding.site_name }}">
-    <meta property="og:description" content="{{ branding.og_description }}">
+    {% set share_image = page.image or (request.url_root ~ 'branding/og_image' if branding.og_image else '') %}
+    <meta property="og:type" content="{{ page.og_type }}">
+    <meta property="og:title" content="{{ page.title }}">
+    <meta property="og:description" content="{{ page.description }}">
     <meta property="og:site_name" content="{{ branding.site_name }}">
-    {% if branding.og_image %}<meta property="og:image" content="{{ request.url_root }}branding/og_image">{% endif %}
-    <meta name="twitter:card" content="{% if branding.og_image %}summary_large_image{% else %}summary{% endif %}">
-    <meta name="twitter:title" content="{{ branding.site_name }}">
-    {% if branding.og_image %}<meta name="twitter:image" content="{{ request.url_root }}branding/og_image">{% endif %}
+    <meta property="og:url" content="{{ page.canonical }}">
+    {% if share_image %}<meta property="og:image" content="{{ share_image }}">{% endif %}
+    <meta name="twitter:card" content="{% if share_image %}summary_large_image{% else %}summary{% endif %}">
+    <meta name="twitter:title" content="{{ page.title }}">
+    <meta name="twitter:description" content="{{ page.description }}">
+    {% if share_image %}<meta name="twitter:image" content="{{ share_image }}">{% endif %}
+    {% if page.jsonld %}<script type="application/ld+json">{{ page.jsonld | tojson }}</script>{% endif %}
 
     <link rel="stylesheet" href="/static/public.css?v={{ version }}">
+    <noscript><style>#resultsArea { display: none; }</style></noscript>
     <script>
       (function () {
         var saved = null;
@@ -105,7 +112,7 @@
             <div class="page-head">
                 <div>
                     <div class="eyebrow">{{ branding.site_name }}</div>
-                    <div class="page-title" id="pageTitle">All Documents</div>
+                    <h1 class="page-title" id="pageTitle">{{ page.heading }}</h1>
                     <div class="page-sub" id="pageSub"></div>
                 </div>
                 <div class="head-tools">
@@ -128,6 +135,26 @@
                 </div>
             </div>
             <div id="resultsArea"><div class="spinner"></div></div>
+
+            {# Crawlers (and anyone without JS) still get real content and real
+               links at every URL — the app itself replaces #resultsArea above. #}
+            <noscript>
+                <div class="noscript-index">
+                    {% if page.doc %}
+                        {% if page.doc.description %}<p>{{ page.doc.description | striptags }}</p>{% endif %}
+                        {% if page.doc.vehicle_fitment %}<p><strong>Vehicle fitment:</strong> {{ page.doc.vehicle_fitment }}</p>{% endif %}
+                        {% if page.doc.associated_parts %}<p><strong>Associated parts:</strong>
+                            {% for p in page.doc.associated_parts %}{{ p.number or p.url }}{% if not loop.last %}, {% endif %}{% endfor %}</p>{% endif %}
+                        {% if page.doc.download_url %}<p><a href="{{ page.doc.download_url }}">Download {{ page.doc.original_name or page.doc.title }}</a></p>{% endif %}
+                        <p><a href="/kb/{{ page.doc.category_slug }}">← Back to the category</a></p>
+                    {% else %}
+                        <ul>
+                            {% for d in page.docs %}<li><a href="{{ d.url }}">{{ d.title }}</a></li>{% endfor %}
+                        </ul>
+                        {% if not page.docs %}<p>There are no documents in this category.</p>{% endif %}
+                    {% endif %}
+                </div>
+            </noscript>
         </div>
     </div>
 </div>
@@ -148,7 +175,23 @@
 <!-- Document detail -->
 <div class="modal-overlay" id="docModal" onclick="if(event.target===this)closeDoc()">
     <div class="modal">
-        <div class="modal-header"><h2 id="docModalTitle">Document</h2><button class="modal-close" onclick="closeDoc()">&times;</button></div>
+        <div class="modal-header">
+            <h2 id="docModalTitle">Document</h2>
+            <div class="modal-tools">
+                <a class="btn btn-primary btn-sm modal-download" id="docDownload" target="_blank" rel="noopener" hidden>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M4 19h16"/></svg>
+                    <span>Download document</span>
+                </a>
+                <button class="modal-action" onclick="shareDoc(event)" title="Share" aria-label="Share this document">
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>
+                </button>
+                <button class="modal-action" onclick="copyDocLink()" title="Copy link" aria-label="Copy link to this document">
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>
+                </button>
+                <button class="modal-close" onclick="closeDoc()" aria-label="Close">&times;</button>
+                <div class="share-menu" id="shareMenu" role="menu"></div>
+            </div>
+        </div>
         <div class="modal-body" id="docModalBody"></div>
     </div>
 </div>
@@ -157,8 +200,11 @@
 
 <script>
 /* List is the default view; a visitor who picks Cards keeps that choice. */
-let CATS = [], UNCAT = 0, DOCS = [], currentCat = 'all', viewMode = 'table';
+const BOOT = {{ page.boot | tojson }};
+const SITE_NAME = {{ branding.site_name | tojson }};
+let CATS = [], UNCAT = 0, DOCS = [], currentCat = BOOT.cat || 'all', viewMode = 'table';
 let cmdkTimer = null, cmdkResults = [], cmdkSel = -1;
+let CURRENT_DOC = null, docPushed = false;
 
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function safeUrl(u){ u=String(u||''); return /^(https?:|mailto:|tel:|\/|#)/i.test(u) ? u : '#'; }
@@ -204,19 +250,46 @@ function renderNav(){
     el.innerHTML = html;
 }
 function navItem(id,label,count,ico){
-    return `<button class="nav-item ${id===currentCat?'active':''}" data-cat="${esc(id)}" onclick="selectCat('${esc(id)}')">
-        ${ico}<span class="nav-label">${esc(label)}</span><span class="nav-count">${count||0}</span></button>`;
+    /* A real href: crawlable, middle-clickable, and it shows the destination on
+       hover. The click is still handled in-page unless a modifier is held. */
+    return `<a class="nav-item ${id===currentCat?'active':''}" href="${esc(catPath(id))}" data-cat="${esc(id)}" onclick="return navClick(event,'${esc(id)}')">
+        ${ico}<span class="nav-label">${esc(label)}</span><span class="nav-count">${count||0}</span></a>`;
 }
+function plainClick(e){ return !(e.metaKey||e.ctrlKey||e.shiftKey||e.altKey||e.button); }
+function navClick(e,id){ e.stopPropagation(); if(!plainClick(e)) return true; e.preventDefault(); selectCat(id); return false; }
+function docClick(e,id){ if(!plainClick(e)) return true; e.preventDefault(); e.stopPropagation(); openDoc(id); return false; }
 function gridIco(){ return '<svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>'; }
 function folderIco(){ return '<svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>'; }
 
-function selectCat(id){
+/* ── URLs & history ── */
+function catPath(id){
+    if (id==='null') return '/kb/uncategorized';
+    const c = CATS.find(x=>String(x.id)===String(id));
+    return (id!=='all' && c && c.slug) ? '/kb/'+c.slug : '/';
+}
+function catName(id){
+    const c = CATS.find(x=>String(x.id)===String(id));
+    return id==='all'?'All Documents':(id==='null'?'Uncategorized':(c?c.name:'Documents'));
+}
+function setUrl(url, state, replace){
+    history[replace?'replaceState':'pushState'](state, '', url);
+    const link = document.getElementById('canonicalLink');
+    if (link) link.href = location.origin + url;
+}
+function setPageTitle(t){ document.title = t; }
+
+function selectCat(id, opts){
+    opts = opts || {};
     currentCat = id;
     document.querySelectorAll('.nav-item[data-cat]').forEach(n=>n.classList.toggle('active', n.dataset.cat===id));
-    const c = CATS.find(x=>String(x.id)===id);
-    document.getElementById('pageTitle').textContent = id==='all'?'All Documents':(id==='null'?'Uncategorized':(c?c.name:'Documents'));
+    document.getElementById('pageTitle').textContent = catName(id);
+    if (opts.history !== false){
+        setUrl(catPath(id), {cat:id, doc:null}, false);
+        setPageTitle(id==='all' ? SITE_NAME : catName(id)+' · '+SITE_NAME);
+        docPushed = false;
+    }
     toggleSidebar(false);
-    loadDocs();
+    return loadDocs();
 }
 
 async function loadDocs(){
@@ -270,7 +343,7 @@ function cardHtml(d, i){
         <div class="kb-thumb">${thumb}${d.ext?`<span class="kb-ext-badge">${esc(d.ext)}</span>`:''}</div>
         <div class="kb-card-body">
             ${cat?`<div class="kb-card-cat">${esc(cat.name)}</div>`:''}
-            <div class="kb-card-title">${esc(d.title)}</div>
+            <a class="kb-card-title" href="${esc(d.url)}" onclick="return docClick(event,${d.id})">${esc(d.title)}</a>
             ${d.description?`<div class="kb-card-desc">${esc(d.description.replace(/<[^>]+>/g,' '))}</div>`:''}
             ${chips?`<div class="chip-row">${chips}</div>`:''}
         </div></article>`;
@@ -287,8 +360,9 @@ function tableHtml(){
         }).join('') || '<span class="cell-muted">—</span>';
         const dl = d.has_file ? `<a class="btn btn-ghost btn-sm" href="${esc(d.download_url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">Open</a>` : '';
         return `<tr onclick="openDoc(${d.id})">
-            <td><div class="idx-title"><div class="idx-thumb">${thumb}</div><div class="idx-title-text">${esc(d.title)}</div></div></td>
-            <td>${cat?esc(cat.name):'<span class="cell-muted">Uncategorized</span>'}</td>
+            <td><div class="idx-title"><div class="idx-thumb">${thumb}</div><a class="idx-title-text" href="${esc(d.url)}" onclick="return docClick(event,${d.id})">${esc(d.title)}</a></div></td>
+            <td>${cat?`<a class="cell-link" href="${esc(catPath(cat.id))}" onclick="return navClick(event,'${cat.id}')">${esc(cat.name)}</a>`
+                     :`<a class="cell-link cell-muted" href="/kb/uncategorized" onclick="return navClick(event,'null')">Uncategorized</a>`}</td>
             <td>${fit}</td>
             <td>${parts}</td>
             <td><span class="mini-chip">${esc((d.ext||'').toUpperCase()||'—')}</span></td>
@@ -301,10 +375,13 @@ function tableHtml(){
 }
 
 /* ── Detail ── */
-async function openDoc(id){
+async function openDoc(id, opts){
+    opts = opts || {};
     let d = DOCS.find(x=>x.id===id);
     if (!d){ try { d = await (await fetch('/api/kb/documents/'+id)).json(); } catch(e){ return; } }
     if (!d || d.error) return;
+    CURRENT_DOC = d;
+    hideShareMenu();
     document.getElementById('docModalTitle').textContent = d.title;
     const cat = CATS.find(c=>c.id===d.category_id);
     const fit = fitList(d);
@@ -312,22 +389,113 @@ async function openDoc(id){
     if (d.has_featured) body += `<img class="detail-banner" src="${esc(d.featured_url)}" alt="">`;
     let meta = '';
     if (cat) meta += `<div><div class="mk">Category</div><div class="mv">${esc(cat.name)}</div></div>`;
+    if (fit.length) meta += `<div class="meta-fit"><div class="mk">Vehicle Fitment</div><div class="mv">${fit.map(esc).join(' · ')}</div></div>`;
     if (d.original_name) meta += `<div><div class="mk">File</div><div class="mv">${esc(d.original_name)}</div></div>`;
     if (d.file_size) meta += `<div><div class="mk">Size</div><div class="mv">${fmtSize(d.file_size)}</div></div>`;
     if (meta) body += `<div class="detail-meta">${meta}</div>`;
     if (d.description) body += `<div style="font-size:0.96rem;line-height:1.7;color:var(--ink-soft);margin:0.6rem 0 1.3rem;">${d.description}</div>`;
-    if (fit.length) body += `<div style="margin-bottom:1.3rem;"><div class="detail-label">Vehicle Fitment</div><div class="chip-row">${fit.map(f=>`<span class="chip">${esc(f)}</span>`).join('')}</div></div>`;
     if ((d.associated_parts||[]).length) body += `<div style="margin-bottom:1.3rem;"><div class="detail-label">Associated Parts</div><div class="chip-row">${partChips(d,'chip')}</div></div>`;
+    // The download button lives in the header alongside Share / Copy link.
+    const dl = document.getElementById('docDownload');
+    dl.hidden = !d.has_file;
     if (d.has_file){
-        body += `<div style="display:flex;gap:0.6rem;margin:0.5rem 0 1.3rem;flex-wrap:wrap;"><a class="btn btn-primary" href="${esc(d.download_url)}" target="_blank" rel="noopener">Download document</a></div>`;
+        dl.href = d.download_url;
         if (['pdf','png','jpg','jpeg','gif','webp','svg'].includes((d.ext||'').toLowerCase()))
             body += `<iframe class="preview-frame" src="${esc(d.download_url)}" title="Preview"></iframe>`;
+    } else {
+        dl.removeAttribute('href');
     }
     document.getElementById('docModalBody').innerHTML = body;
     document.getElementById('docModal').classList.add('active');
-    history.replaceState(null,'','#doc-'+id);
+    if (opts.history !== false){
+        const replace = opts.history === 'replace';
+        setUrl(d.url, {cat:currentCat, doc:d.id}, replace);
+        if (!replace) docPushed = true;
+    }
+    setPageTitle(d.title + ' · ' + SITE_NAME);
 }
-function closeDoc(){ document.getElementById('docModal').classList.remove('active'); history.replaceState(null,'',location.pathname); }
+function closeDoc(opts){
+    opts = opts || {};
+    const m = document.getElementById('docModal');
+    if (!m.classList.contains('active')) return;
+    m.classList.remove('active');
+    hideShareMenu();
+    CURRENT_DOC = null;
+    if (opts.history === false) return;
+    // Back if we pushed the document ourselves, so the Back button stays honest;
+    // a visitor who landed straight on the document URL gets it swapped instead.
+    if (docPushed){ docPushed = false; history.back(); return; }
+    setUrl(catPath(currentCat), {cat:currentCat, doc:null}, true);
+    setPageTitle(currentCat==='all' ? SITE_NAME : catName(currentCat)+' · '+SITE_NAME);
+}
+
+/* ── Sharing ── */
+function docShareUrl(){ return CURRENT_DOC ? location.origin + CURRENT_DOC.url : location.href; }
+function hideShareMenu(){ const m=document.getElementById('shareMenu'); if(m) m.classList.remove('open'); }
+
+async function copyDocLink(){
+    const url = docShareUrl();
+    hideShareMenu();
+    try {
+        // clipboard.writeText needs a secure context — plain-http deployments
+        // fall through to the old textarea trick rather than silently failing.
+        if (navigator.clipboard && window.isSecureContext) await navigator.clipboard.writeText(url);
+        else {
+            const ta = document.createElement('textarea');
+            ta.value = url; ta.setAttribute('readonly',''); ta.style.position='fixed'; ta.style.opacity='0';
+            document.body.appendChild(ta); ta.select();
+            const ok = document.execCommand('copy');
+            ta.remove();
+            if (!ok) throw new Error('copy failed');
+        }
+        toast('Link copied');
+    } catch(e){ window.prompt('Copy this link:', url); }
+}
+
+async function shareDoc(e){
+    if (e) e.stopPropagation();
+    const url = docShareUrl(), title = CURRENT_DOC ? CURRENT_DOC.title : SITE_NAME;
+    if (navigator.share){
+        try { await navigator.share({title: title, text: title, url: url}); }
+        catch(err){ /* the visitor dismissed the share sheet */ }
+        return;
+    }
+    buildShareMenu(url, title);
+    document.getElementById('shareMenu').classList.toggle('open');
+}
+
+function buildShareMenu(url, title){
+    const u = encodeURIComponent(url), t = encodeURIComponent(title);
+    const targets = [
+        ['Email',    `mailto:?subject=${t}&body=${t}%0A%0A${u}`],
+        ['X',        `https://twitter.com/intent/tweet?url=${u}&text=${t}`],
+        ['Facebook', `https://www.facebook.com/sharer/sharer.php?u=${u}`],
+        ['LinkedIn', `https://www.linkedin.com/sharing/share-offsite/?url=${u}`],
+        ['WhatsApp', `https://wa.me/?text=${t}%20${u}`],
+    ];
+    document.getElementById('shareMenu').innerHTML =
+        targets.map(([label,href])=>`<a class="share-item" role="menuitem" href="${esc(href)}" target="_blank" rel="noopener" onclick="hideShareMenu()">${label}</a>`).join('')
+        + `<button class="share-item" role="menuitem" onclick="copyDocLink()">Copy link</button>`;
+}
+document.addEventListener('click', e=>{ if(!e.target.closest('.modal-tools')) hideShareMenu(); });
+
+/* ── Routing ── */
+function applyState(st){
+    st = st || {cat:'all', doc:null};
+    docPushed = false;
+    const cat = st.cat==null ? 'all' : String(st.cat);
+    const done = (String(cat)===String(currentCat)) ? Promise.resolve() : selectCat(cat, {history:false});
+    done.then(()=>{
+        if (st.doc) openDoc(st.doc, {history:false});
+        else {
+            closeDoc({history:false});
+            setPageTitle(cat==='all' ? SITE_NAME : catName(cat)+' · '+SITE_NAME);
+            document.getElementById('pageTitle').textContent = catName(cat);
+        }
+    });
+}
+window.addEventListener('popstate', e=>applyState(e.state));
+
 function fmtSize(b){ if(!b) return ''; const u=['B','KB','MB','GB']; let i=0,n=b; while(n>=1024&&i<u.length-1){n/=1024;i++;} return n.toFixed(n<10&&i>0?1:0)+' '+u[i]; }
 
 /* ── Command palette (live search) ── */
@@ -376,11 +544,18 @@ document.addEventListener('keydown', e=>{
 (async function init(){
     try { const v=localStorage.getItem('wmkb-view'); if(v==='table'||v==='cards') viewMode=v; } catch(e){}
     setView(viewMode, false);
+    const legacyHash = location.hash;   // read it before replaceState drops it
+    // Seed the first entry so Back/Forward always have a state to apply.
+    history.replaceState({cat: currentCat, doc: BOOT.doc || null}, '', location.pathname + location.search);
     await loadCategories();
     await loadDocs();
     {% if branding.last_sync %}document.getElementById('syncMeta').textContent = 'Updated {{ branding.last_sync[:10] }}';{% endif %}
-    const m = location.hash.match(/^#doc-(\d+)$/);
-    if (m) openDoc(parseInt(m[1]));
+    if (BOOT.doc){
+        openDoc(BOOT.doc, {history:false});
+    } else {
+        const m = legacyHash.match(/^#doc-(\d+)$/);      // links shared before v1.1.0
+        if (m) openDoc(parseInt(m[1]), {history:'replace'});
+    }
 })();
 </script>
 </body>

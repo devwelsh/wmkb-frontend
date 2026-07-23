@@ -14,18 +14,21 @@ import json
 import uuid
 import secrets
 import hashlib
+import unicodedata
 from io import BytesIO
 from datetime import datetime, timedelta, timezone
 from functools import wraps
+from xml.sax.saxutils import escape as _xml_escape
 
 import sqlite3
 from flask import (Flask, render_template, request, jsonify, redirect, url_for,
-                   send_from_directory, send_file, session, abort)
+                   send_from_directory, send_file, session, abort, Response)
 from flask_login import (LoginManager, UserMixin, login_user, logout_user,
                          login_required, current_user)
+from werkzeug.routing import BaseConverter
 from werkzeug.security import generate_password_hash, check_password_hash
 
-APP_VERSION = '1.0.3'
+APP_VERSION = '1.1.0'
 
 # ── Paths & config ────────────────────────────────────────────────────────
 DATA_DIR = os.environ.get('WMKB_DATA_DIR', os.path.dirname(os.path.abspath(__file__)))
@@ -43,6 +46,18 @@ app.config['MAX_CONTENT_LENGTH'] = 8 * 1024 * 1024  # branding uploads only
 # (and the Open Graph absolute image URL) reflect the real external https host.
 from werkzeug.middleware.proxy_fix import ProxyFix
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+
+
+class SlugConverter(BaseConverter):
+    """A URL segment for the readable public routes (/kb/<category>/<document>).
+
+    Refuses all-digit segments, which is what keeps those page routes from ever
+    shadowing the numeric file endpoints (/kb/<id>/download, /kb/<id>/featured).
+    """
+    regex = r'(?!\d+$)[A-Za-z0-9][A-Za-z0-9_-]*'
+
+
+app.url_map.converters['slug'] = SlugConverter
 
 # Secret key: env var > file > auto-generate (same pattern as Warehouse Manager)
 if os.environ.get('SECRET_KEY'):
@@ -93,6 +108,80 @@ def _security_headers(resp):
         resp.headers.setdefault('Strict-Transport-Security',
                                 'max-age=31536000; includeSubDomains')
     return resp
+
+
+# ── URL slugs ─────────────────────────────────────────────────────────────
+# Public pages live at /kb/<category-slug>/<document-slug>. Slugs are derived
+# from the Warehouse Manager category slug / document title and stored locally,
+# because the URL has to stay stable between syncs for search engines.
+UNCATEGORIZED_SLUG = 'uncategorized'
+# Category slugs share the /kb/ namespace with these, so they can't be taken.
+RESERVED_CAT_SLUGS = {UNCATEGORIZED_SLUG, 'download', 'featured', 'search', 'all'}
+
+
+def _slugify(text, max_len=80):
+    s = unicodedata.normalize('NFKD', str(text or '')).encode('ascii', 'ignore').decode('ascii')
+    s = re.sub(r'[^a-z0-9]+', '-', s.lower()).strip('-')
+    if len(s) > max_len:
+        cut = s[:max_len]
+        s = cut.rsplit('-', 1)[0] if '-' in cut else cut   # never split a word
+    return s.strip('-')
+
+
+def _slug_base(text, kind, remote_id):
+    s = _slugify(text)
+    if not s:
+        return f'{kind}-{remote_id}'
+    if s.isdigit():          # the URL converter refuses all-digit segments
+        return f'{kind}-{s}'
+    return s
+
+
+def _unique_slug(base, taken):
+    slug, n = base, 2
+    while slug in taken:
+        slug = f'{base}-{n}'
+        n += 1
+    taken.add(slug)
+    return slug
+
+
+def _derives_from(slug, base):
+    """True when `slug` is `base` or one of its collision variants (base-2, …)."""
+    return slug == base or bool(re.fullmatch(re.escape(base) + r'-\d+', slug))
+
+
+def assign_slugs(conn):
+    """Give every category and document a unique, URL-safe slug.
+
+    Idempotent, and deliberately conservative for documents: a document keeps
+    the slug it already has as long as that slug still derives from its current
+    title, so a published link doesn't break every time the sync runs. Titles
+    that actually change do get a new slug (the old URL then 404s — the sitemap
+    and the canonical tag carry the new one).
+    """
+    taken = set(RESERVED_CAT_SLUGS)
+    for r in conn.execute("SELECT remote_id, name, slug FROM kb_categories "
+                          "ORDER BY sort_order, remote_id").fetchall():
+        # Warehouse Manager's own slug wins; the name is the fallback.
+        base = _slug_base(r['slug'] or r['name'], 'category', r['remote_id'])
+        slug = _unique_slug(base, taken)
+        if slug != (r['slug'] or ''):
+            conn.execute("UPDATE kb_categories SET slug = ? WHERE remote_id = ?",
+                         (slug, r['remote_id']))
+
+    taken, pending = set(), []
+    for r in conn.execute("SELECT remote_id, title, slug FROM kb_documents "
+                          "ORDER BY remote_id").fetchall():
+        base = _slug_base(r['title'], 'document', r['remote_id'])
+        cur = r['slug'] or ''
+        if cur and cur not in taken and _derives_from(cur, base):
+            taken.add(cur)
+        else:
+            pending.append((r['remote_id'], base))
+    for remote_id, base in pending:
+        conn.execute("UPDATE kb_documents SET slug = ? WHERE remote_id = ?",
+                     (_unique_slug(base, taken), remote_id))
 
 
 # ── Database ──────────────────────────────────────────────────────────────
@@ -169,7 +258,17 @@ def _migrate_v1(conn):
         )""")
 
 
-MIGRATIONS = [(1, _migrate_v1)]
+def _migrate_v2(conn):
+    """Readable URLs: give every document a slug and normalize category slugs."""
+    cols = {r['name'] for r in conn.execute("PRAGMA table_info(kb_documents)")}
+    if 'slug' not in cols:
+        conn.execute("ALTER TABLE kb_documents ADD COLUMN slug TEXT DEFAULT ''")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_docs_slug ON kb_documents(slug)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_cats_slug ON kb_categories(slug)")
+    assign_slugs(conn)
+
+
+MIGRATIONS = [(1, _migrate_v1), (2, _migrate_v2)]
 
 
 def init_db():
@@ -384,9 +483,209 @@ def _public_branding_ctx():
     return b
 
 
+# ── Readable public URLs ──────────────────────────────────────────────────
+# /                               all documents
+# /kb/<category>                  one category
+# /kb/<category>/<document>       one document (canonical share link)
+# /kb/<id>                        numeric permalink → 301 to the canonical URL
+#
+# The page is still the same single-page app; these routes exist so every
+# document has its own address with server-rendered <title>/description/OG tags
+# and a <noscript> copy for crawlers that don't run the JS.
+def _abs_url(path):
+    return request.url_root.rstrip('/') + path
+
+
+def _clean_text(s, limit=300):
+    """Description text for meta tags: no markup, no runaway length."""
+    s = re.sub(r'<[^>]+>', ' ', str(s or ''))
+    s = re.sub(r'\s+', ' ', s).strip()
+    return s[:limit - 1].rstrip() + '…' if len(s) > limit else s
+
+
+def _crawlable(rows):
+    return [{'title': r['title'] or r['original_name'] or f"Document {r['remote_id']}",
+             'url': (f"/kb/{r['category_slug'] or UNCATEGORIZED_SLUG}/{r['slug']}"
+                     if r['slug'] else f"/kb/{r['remote_id']}")}
+            for r in rows]
+
+
+def _render_public(page, status=200):
+    page.setdefault('robots', '')
+    page.setdefault('image', '')
+    page.setdefault('og_type', 'website')
+    page.setdefault('docs', [])
+    page.setdefault('jsonld', None)
+    page.setdefault('doc', None)
+    return render_template('index.html', branding=_public_branding_ctx(),
+                           version=APP_VERSION, page=page), status
+
+
+def _breadcrumbs(items):
+    return {'@context': 'https://schema.org', '@type': 'BreadcrumbList',
+            'itemListElement': [{'@type': 'ListItem', 'position': i + 1,
+                                 'name': name, 'item': _abs_url(path)}
+                                for i, (name, path) in enumerate(items)]}
+
+
 @app.route('/')
 def public_index():
-    return render_template('index.html', branding=_public_branding_ctx(), version=APP_VERSION)
+    conn = get_db()
+    b = get_branding(conn)
+    rows = _query_documents(conn)
+    conn.close()
+    return _render_public({
+        'title': b['site_name'],
+        'heading': 'All Documents',
+        'description': _clean_text(b['og_description']),
+        'canonical': _abs_url('/'),
+        'boot': {'cat': 'all', 'doc': None},
+        'docs': _crawlable(rows),
+    })
+
+
+@app.route('/kb', strict_slashes=False)
+def public_kb_root():
+    return redirect('/', code=301)
+
+
+@app.route('/kb/<slug:cat_slug>', strict_slashes=False)
+def public_category(cat_slug):
+    conn = get_db()
+    b = get_branding(conn)
+    if cat_slug == UNCATEGORIZED_SLUG:
+        name, boot_cat, cat_filter = 'Uncategorized', 'null', 'null'
+    else:
+        cat = conn.execute("SELECT * FROM kb_categories WHERE slug = ?", (cat_slug,)).fetchone()
+        if not cat:
+            conn.close()
+            abort(404)
+        name, boot_cat, cat_filter = cat['name'], str(cat['remote_id']), cat['remote_id']
+    rows = _query_documents(conn, cat_filter)
+    conn.close()
+    path = f'/kb/{cat_slug}'
+    return _render_public({
+        'title': f"{name} · {b['site_name']}",
+        'heading': name,
+        'description': _clean_text(f"{name} — {b['og_description']}"),
+        'canonical': _abs_url(path),
+        'boot': {'cat': boot_cat, 'doc': None},
+        'docs': _crawlable(rows),
+        'jsonld': _breadcrumbs([(b['site_name'], '/'), (name, path)]),
+    })
+
+
+@app.route('/kb/<slug:cat_slug>/<slug:doc_slug>')
+def public_document(cat_slug, doc_slug):
+    conn = get_db()
+    row = conn.execute(_DOC_SELECT + " WHERE d.slug = ?", (doc_slug,)).fetchone()
+    if not row:
+        conn.close()
+        abort(404)
+    d = _doc_public_dict(row)
+    # The category is part of the address, so a stale one is a redirect, not a
+    # 404 — moving a document between categories must not orphan its links.
+    if d['category_slug'] != cat_slug:
+        conn.close()
+        return redirect(d['url'], code=301)
+    b = get_branding(conn)
+    cat = conn.execute("SELECT name FROM kb_categories WHERE remote_id = ?",
+                       (row['category_remote_id'],)).fetchone()
+    conn.close()
+    cat_name = cat['name'] if cat else 'Uncategorized'
+    desc = _clean_text(d['description']) or _clean_text(
+        f"{d['title']} — {cat_name} documentation from {b['site_name']}.")
+    crumbs = [(b['site_name'], '/'), (cat_name, f"/kb/{d['category_slug']}"), (d['title'], d['url'])]
+    return _render_public({
+        'title': f"{d['title']} · {b['site_name']}",
+        'heading': d['title'],
+        'description': desc,
+        'canonical': _abs_url(d['url']),
+        'og_type': 'article',
+        'image': _abs_url(d['featured_url']) if d['featured_url'] else '',
+        'boot': {'cat': str(d['category_id']) if d['category_id'] else 'null', 'doc': d['id']},
+        'doc': d,
+        'jsonld': [
+            _breadcrumbs(crumbs),
+            {'@context': 'https://schema.org', '@type': 'DigitalDocument',
+             'name': d['title'], 'description': desc, 'url': _abs_url(d['url']),
+             'inLanguage': 'en', 'isPartOf': {'@type': 'CollectionPage', 'name': cat_name,
+                                              'url': _abs_url(f"/kb/{d['category_slug']}")},
+             **({'image': _abs_url(d['featured_url'])} if d['featured_url'] else {}),
+             **({'encodingFormat': d['mime_type']} if d['mime_type'] else {}),
+             **({'dateCreated': d['created_at']} if d['created_at'] else {})},
+        ],
+    })
+
+
+@app.route('/kb/<int:rid>')
+def public_document_permalink(rid):
+    """Short numeric permalink — always 301s to the readable canonical URL."""
+    conn = get_db()
+    row = conn.execute(_DOC_SELECT + " WHERE d.remote_id = ?", (rid,)).fetchone()
+    conn.close()
+    if not row or not row['slug']:
+        abort(404)
+    return redirect(_doc_public_dict(row)['url'], code=301)
+
+
+@app.route('/sitemap.xml')
+def sitemap():
+    conn = get_db()
+    cats = conn.execute("SELECT slug FROM kb_categories WHERE slug != '' "
+                        "ORDER BY sort_order, remote_id").fetchall()
+    uncat = conn.execute("SELECT COUNT(*) AS n FROM kb_documents "
+                         "WHERE category_remote_id IS NULL").fetchone()['n']
+    docs = conn.execute(_DOC_SELECT + " WHERE d.slug != ''" + _DOC_ORDER).fetchall()
+    conn.close()
+    entries = [('/', '')]
+    entries += [(f"/kb/{c['slug']}", '') for c in cats]
+    if uncat:
+        entries.append((f'/kb/{UNCATEGORIZED_SLUG}', ''))
+    for r in docs:
+        lastmod = (r['synced_at'] or '')[:10]
+        entries.append((_doc_public_dict(r)['url'],
+                        lastmod if re.fullmatch(r'\d{4}-\d{2}-\d{2}', lastmod) else ''))
+    body = ['<?xml version="1.0" encoding="UTF-8"?>',
+            '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
+    for path, lastmod in entries:
+        body.append('<url><loc>' + _xml_escape(_abs_url(path)) + '</loc>'
+                    + (f'<lastmod>{lastmod}</lastmod>' if lastmod else '') + '</url>')
+    body.append('</urlset>')
+    return Response('\n'.join(body), mimetype='application/xml')
+
+
+@app.route('/robots.txt')
+def robots():
+    return Response('\n'.join([
+        'User-agent: *',
+        'Allow: /',
+        'Disallow: /admin',
+        'Disallow: /api/',
+        f'Sitemap: {_abs_url("/sitemap.xml")}',
+        '']), mimetype='text/plain')
+
+
+@app.errorhandler(404)
+def _handle_404(e):
+    if request.path.startswith('/api/'):
+        return jsonify({'error': 'Not found'}), 404
+    # A missing asset stays cheap and plain; only page requests are worth
+    # rendering the whole site shell for.
+    if (request.path.startswith(('/branding/', '/static/'))
+            or re.match(r'^/kb/\d+/', request.path)):
+        return 'Not found', 404
+    conn = get_db()
+    b = get_branding(conn)
+    conn.close()
+    return _render_public({
+        'title': f"Not found · {b['site_name']}",
+        'heading': 'Page not found',
+        'description': _clean_text(b['og_description']),
+        'canonical': _abs_url('/'),
+        'robots': 'noindex',
+        'boot': {'cat': 'all', 'doc': None},
+    }, 404)
 
 
 def _doc_public_dict(row):
@@ -395,9 +694,15 @@ def _doc_public_dict(row):
         parts = json.loads(d.get('associated_parts') or '[]')
     except Exception:
         parts = []
+    cat_slug = d.get('category_slug') or UNCATEGORIZED_SLUG
+    slug = d.get('slug') or ''
     return {
         'id': d['remote_id'],
         'category_id': d['category_remote_id'],
+        'slug': slug,
+        'category_slug': cat_slug,
+        # Canonical page for this document — what the UI links to and shares.
+        'url': f'/kb/{cat_slug}/{slug}' if slug else f"/kb/{d['remote_id']}",
         'title': d['title'],
         'description': d['description'],
         'original_name': d['original_name'],
@@ -431,29 +736,37 @@ def api_categories():
     return jsonify({'categories': [dict(r) for r in rows], 'uncategorized_count': uncategorized})
 
 
+# Every document read joins its category so the row carries the slug the public
+# URL is built from.
+_DOC_SELECT = ("SELECT d.*, c.slug AS category_slug FROM kb_documents d "
+               "LEFT JOIN kb_categories c ON c.remote_id = d.category_remote_id")
+_DOC_ORDER = " ORDER BY d.sort_order, d.title COLLATE NOCASE, d.id"
+
+
+def _query_documents(conn, category=None, q=''):
+    """category: None = all, 'null' = uncategorized, or a remote category id."""
+    where, params = [], []
+    if category == 'null':
+        where.append("d.category_remote_id IS NULL")
+    elif category not in (None, '', 'all'):
+        try:
+            where.append("d.category_remote_id = ?")
+            params.append(int(category))
+        except (TypeError, ValueError):
+            pass
+    if q:
+        where.append("(d.title LIKE ? OR d.description LIKE ? OR d.original_name LIKE ? "
+                     "OR d.vehicle_fitment LIKE ? OR d.associated_parts LIKE ?)")
+        params += [f"%{q}%"] * 5
+    sql = _DOC_SELECT + (" WHERE " + " AND ".join(where) if where else "") + _DOC_ORDER
+    return conn.execute(sql, params).fetchall()
+
+
 @app.route('/api/kb/documents')
 def api_documents():
     conn = get_db()
-    where, params = [], []
-    cat = request.args.get('category_id')
-    if cat == 'null':
-        where.append("category_remote_id IS NULL")
-    elif cat not in (None, '', 'all'):
-        try:
-            where.append("category_remote_id = ?")
-            params.append(int(cat))
-        except ValueError:
-            pass
-    q = (request.args.get('q') or '').strip()
-    if q:
-        where.append("(title LIKE ? OR description LIKE ? OR original_name LIKE ? "
-                     "OR vehicle_fitment LIKE ? OR associated_parts LIKE ?)")
-        params += [f"%{q}%"] * 5
-    sql = "SELECT * FROM kb_documents"
-    if where:
-        sql += " WHERE " + " AND ".join(where)
-    sql += " ORDER BY sort_order, title COLLATE NOCASE, id"
-    rows = conn.execute(sql, params).fetchall()
+    rows = _query_documents(conn, request.args.get('category_id'),
+                            (request.args.get('q') or '').strip())
     conn.close()
     return jsonify({'documents': [_doc_public_dict(r) for r in rows]})
 
@@ -461,7 +774,7 @@ def api_documents():
 @app.route('/api/kb/documents/<int:rid>')
 def api_document(rid):
     conn = get_db()
-    row = conn.execute("SELECT * FROM kb_documents WHERE remote_id = ?", (rid,)).fetchone()
+    row = conn.execute(_DOC_SELECT + " WHERE d.remote_id = ?", (rid,)).fetchone()
     conn.close()
     if not row:
         return jsonify({'error': 'Not found'}), 404

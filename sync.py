@@ -123,6 +123,9 @@ def run_sync():
                 _safe_remove(row['local_file'])
                 _safe_remove(row['local_featured'])
                 conn.execute("DELETE FROM kb_documents WHERE remote_id = ?", (row['remote_id'],))
+        # New rows arrive without a slug and renames/collisions need resolving,
+        # so the public URLs are (re)derived once both tables are settled.
+        wmkb.assign_slugs(conn)
         conn.commit()
     except Exception as e:
         conn.close()

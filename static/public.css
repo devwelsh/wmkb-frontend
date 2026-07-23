@@ -298,6 +298,10 @@ a.chip.part:hover { background: var(--accent); color: var(--on-accent); transfor
 .mini-chip.part { background: var(--accent-soft); color: var(--accent-deep); border-color: transparent; font-weight: 600; }
 a.mini-chip.part:hover { background: var(--accent); color: var(--on-accent); }
 .cell-muted { color: var(--ink-mute); }
+.cell-link:hover { color: var(--accent); }
+/* Titles are real links now (crawlable, middle-clickable); they keep the cell's
+   look and only pick up the accent on hover. */
+.idx-title-text:hover, .kb-card-title:hover { color: var(--accent); }
 /* Narrow desktops: shed the chip columns (both are still shown in the detail
    modal) so Document keeps a readable width instead of scrolling out of reach. */
 @media (max-width: 1200px) {
@@ -339,6 +343,12 @@ a.mini-chip.part:hover { background: var(--accent); color: var(--on-accent); }
 /* sidebar link button */
 .sidebar-link-button { width: 100%; }
 
+/* Plain-HTML fallback (crawlers / no JS) — never seen by a normal visitor. */
+.noscript-index { padding: 1rem 0 2rem; color: var(--ink-soft); }
+.noscript-index ul { padding-left: 1.2rem; }
+.noscript-index li { margin: 0.35rem 0; }
+.noscript-index a { color: var(--accent-deep); text-decoration: underline; }
+
 /* ── Empty / loading ── */
 .empty-state { text-align: center; padding: 5rem 1rem; color: var(--ink-mute); }
 .empty-state svg { width: 56px; height: 56px; margin: 0 auto 1.2rem; opacity: 0.4; color: var(--accent); }
@@ -375,15 +385,33 @@ a.mini-chip.part:hover { background: var(--accent); color: var(--on-accent); }
 .modal-overlay.active .modal { transform: none; }
 .modal-header { flex-shrink: 0; display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; padding: 1.4rem 1.6rem; border-bottom: 1px solid var(--hairline); background: var(--surface-solid); }
 .modal-header h2 { font-family: var(--font-display); font-weight: 700; font-size: 1.4rem; line-height: 1.25; letter-spacing: -0.025em; }
-.modal-close { width: 36px; height: 36px; flex-shrink: 0; border: 1px solid var(--hairline); background: var(--surface-2); color: var(--ink-soft); border-radius: var(--pill); cursor: pointer; font-size: 1.2rem; line-height: 1; transition: all var(--speed-fast); }
-.modal-close:hover { background: var(--accent); color: var(--on-accent); border-color: transparent; }
+/* Download / share / copy / close sit together; the share menu hangs off this row. */
+.modal-tools { position: relative; z-index: 3; flex-shrink: 0; display: flex; align-items: center; gap: 0.45rem; }
+.modal-download { margin-right: 0.15rem; }
+/* .btn is inline-flex, which would otherwise beat the UA's [hidden] rule. */
+.modal-download[hidden] { display: none; }
+.modal-close, .modal-action { width: 36px; height: 36px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--hairline); background: var(--surface-2); color: var(--ink-soft); border-radius: var(--pill); cursor: pointer; font-size: 1.2rem; line-height: 1; transition: all var(--speed-fast); }
+.modal-close:hover, .modal-action:hover { background: var(--accent); color: var(--on-accent); border-color: transparent; }
+.share-menu { position: absolute; top: calc(100% + 10px); right: 0; min-width: 176px; padding: 0.4rem; display: none; flex-direction: column; border-radius: var(--radius-sm); background: var(--surface-solid); border: 1px solid var(--hairline); box-shadow: var(--shadow-lg); }
+.share-menu.open { display: flex; }
+.share-item { display: block; width: 100%; text-align: left; padding: 0.55rem 0.75rem; border: none; background: none; border-radius: 9px; font-family: var(--font-body); font-size: 0.85rem; font-weight: 500; color: var(--ink-soft); cursor: pointer; transition: background var(--speed-fast), color var(--speed-fast); }
+.share-item:hover { background: var(--accent-soft); color: var(--accent-deep); }
 .modal-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 1.6rem; }
 .detail-banner { width: 100%; max-height: 340px; object-fit: cover; border-radius: var(--radius); margin-bottom: 1.4rem; box-shadow: var(--shadow); }
 .detail-meta { display: flex; flex-wrap: wrap; gap: 1rem 2rem; margin: 1.1rem 0; padding: 1.2rem 1.4rem; border-radius: var(--radius); background: var(--surface-2); border: 1px solid var(--hairline); }
 .detail-meta .mk { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--ink-mute); margin-bottom: 3px; }
 .detail-meta .mv { font-size: 0.92rem; color: var(--ink); }
+/* Fitment is a list, so it gets a ceiling and wraps inside its own cell rather
+   than stretching the meta row and pushing File/Size onto another line. */
+.detail-meta .meta-fit { max-width: 26rem; }
 .detail-label { font-size: 0.64rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em; color: var(--accent); margin-bottom: 0.6rem; }
 .preview-frame { width: 100%; height: 74vh; border: 1px solid var(--hairline); border-radius: var(--radius); background: var(--surface-2); }
+/* Narrow screens: the label would push the title into a three-line stack, so
+   the download button drops to its icon and matches the round tool buttons. */
+@media (max-width: 700px) {
+    .modal-download span { display: none; }
+    .modal-download { width: 36px; height: 36px; padding: 0; margin-right: 0; }
+}
 
 /* ── Toasts ── */
 .toast-wrap { position: fixed; bottom: 24px; right: 24px; z-index: 400; display: flex; flex-direction: column; gap: 10px; }

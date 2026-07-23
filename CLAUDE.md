@@ -66,6 +66,25 @@ server-rendered by Jinja (crawlers don't run JS). Files are served from the
 cache by `remote_id` via `/kb/<id>/download` and `/kb/<id>/featured` (public,
 `nosniff`; non-previewable types download as attachments).
 
+**URLs & SEO (v1.1.0).** Public pages are `/`, `/kb/<category-slug>` and
+`/kb/<category-slug>/<document-slug>`; `/kb/<id>` 301s to a document's canonical
+URL, as does a request with the wrong category segment. It is still one SPA —
+each route renders `index.html` with a `page` dict (`title`, `heading`,
+`description`, `canonical`, `robots`, `image`, `jsonld`, `boot`, `docs`, `doc`)
+that supplies the per-page `<head>`, the `<h1>`, a `<noscript>` copy for
+crawlers, and the `BOOT` object the JS starts from. The JS keeps the URL in step
+via `pushState`, so Back closes the document window. `/sitemap.xml` and
+`/robots.txt` are generated from the mirror.
+
+Slugs are stored locally (`kb_documents.slug`, normalized `kb_categories.slug`)
+and (re)derived by `assign_slugs()` — from `_migrate_v2` and after every sync
+upsert. It is idempotent and deliberately sticky: a document keeps its slug
+while that slug still derives from its current title, so published links survive
+re-syncs. All-digit slugs are prefixed because the `slug` URL converter refuses
+them — that is what stops `/kb/<category>/<document>` from shadowing
+`/kb/<id>/download`. `RESERVED_CAT_SLUGS` keeps `uncategorized` (the virtual
+category for documents with none) free.
+
 **Admin (`/admin`).** `login.html` (optional Turnstile), `setup.html` (first-run
 wizard: create admin → connect to Warehouse Manager → finish), `admin.html`
 (dashboard + tabbed Settings modal). All settings persist to `app_settings`.
