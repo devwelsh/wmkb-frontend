@@ -193,6 +193,24 @@ def run_sync():
         except Exception as e:
             errors.append(f"doc {rid}: {e}")
 
+    # ── Glossary: full replace (terms carry no stable upstream ids). A 404
+    # (older Warehouse Manager without the endpoint) leaves the mirror as-is. ──
+    try:
+        terms = wm_client.get_glossary(base, key)
+        if terms is not None:
+            conn = _conn()
+            try:
+                conn.execute("DELETE FROM kb_glossary")
+                conn.executemany(
+                    "INSERT INTO kb_glossary (term, definition, letter) VALUES (?, ?, ?)",
+                    [(t.get('term', ''), t.get('definition', ''), t.get('letter', ''))
+                     for t in terms if t.get('term')])
+                conn.commit()
+            finally:
+                conn.close()
+    except Exception as e:
+        errors.append(f"glossary: {e}")
+
     status = 'ok' if not errors else 'partial'
     return _log_finish(log_id, started, status, len(cats), len(docs), files_downloaded,
                        '; '.join(errors[:10]))

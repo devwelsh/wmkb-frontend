@@ -67,6 +67,19 @@ def get_documents(base_url, api_key):
     return r.json().get('documents', [])
 
 
+def get_glossary(base_url, api_key):
+    """Return the glossary terms list, or None when the Warehouse Manager
+    version predates the glossary endpoint (404) — callers leave the local
+    mirror untouched in that case."""
+    r = requests.get(_url(base_url, '/api/external/kb/glossary'),
+                     headers=_headers(api_key), timeout=TIMEOUT)
+    if r.status_code == 404:
+        return None
+    if r.status_code != 200:
+        raise WMClientError(f'glossary: HTTP {r.status_code}')
+    return r.json().get('terms', [])
+
+
 def _download(base_url, api_key, path, dest_path):
     """Stream a file to dest_path atomically. Returns True on success,
     False if the source 404s (file gone), raises on other errors."""

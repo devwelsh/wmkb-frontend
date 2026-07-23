@@ -28,7 +28,7 @@ from flask_login import (LoginManager, UserMixin, login_user, logout_user,
 from werkzeug.routing import BaseConverter
 from werkzeug.security import generate_password_hash, check_password_hash
 
-APP_VERSION = '1.1.8'
+APP_VERSION = '1.2.0'
 
 # ── Paths & config ────────────────────────────────────────────────────────
 DATA_DIR = os.environ.get('WMKB_DATA_DIR', os.path.dirname(os.path.abspath(__file__)))
@@ -268,7 +268,19 @@ def _migrate_v2(conn):
     assign_slugs(conn)
 
 
-MIGRATIONS = [(1, _migrate_v1), (2, _migrate_v2)]
+def _migrate_v3(conn):
+    """Local mirror of Warehouse Manager's glossary terms (WM v1.7.5 API)."""
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS kb_glossary (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            term TEXT NOT NULL,
+            definition TEXT DEFAULT '',
+            letter TEXT DEFAULT ''
+        )""")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_glossary_term ON kb_glossary(term)")
+
+
+MIGRATIONS = [(1, _migrate_v1), (2, _migrate_v2), (3, _migrate_v3)]
 
 
 def init_db():
@@ -769,6 +781,24 @@ def api_documents():
                             (request.args.get('q') or '').strip())
     conn.close()
     return jsonify({'documents': [_doc_public_dict(r) for r in rows]})
+
+
+@app.route('/api/kb/glossary')
+def api_glossary():
+    q = (request.args.get('q') or '').strip()
+    conn = get_db()
+    if q:
+        like = f"%{q}%"
+        rows = conn.execute(
+            "SELECT term, definition, letter FROM kb_glossary "
+            "WHERE term LIKE ? OR definition LIKE ? ORDER BY term COLLATE NOCASE",
+            (like, like)).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT term, definition, letter FROM kb_glossary ORDER BY term COLLATE NOCASE"
+        ).fetchall()
+    conn.close()
+    return jsonify({'terms': [dict(r) for r in rows]})
 
 
 @app.route('/api/kb/documents/<int:rid>')

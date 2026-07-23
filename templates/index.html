@@ -67,6 +67,7 @@
         <nav class="sidebar-nav">
             <div class="nav-section-label">Browse</div>
             <div id="navItems"></div>
+            <div id="glossaryNav"></div>
             {% if branding.nav_links %}
             <div class="nav-section-label">Links</div>
             <div class="sidebar-links">
@@ -191,6 +192,23 @@
             </div>
         </div>
         <div class="modal-body" id="docModalBody"></div>
+    </div>
+</div>
+
+<!-- Glossary -->
+<div class="modal-overlay" id="glossaryModal" onclick="if(event.target===this)closeGlossary()">
+    <div class="modal">
+        <div class="modal-header">
+            <h2>Glossary</h2>
+            <div class="modal-tools">
+                <button class="modal-close" onclick="closeGlossary()" aria-label="Close">&times;</button>
+            </div>
+        </div>
+        <div class="modal-body">
+            <input class="glossary-search" id="glossarySearch" type="text"
+                   placeholder="Filter terms…" autocomplete="off" oninput="renderGlossary(this.value)">
+            <div id="glossaryList"></div>
+        </div>
     </div>
 </div>
 
@@ -443,6 +461,43 @@ function closeDoc(opts){
     setPageTitle(currentCat==='all' ? SITE_NAME : catName(currentCat)+' · '+SITE_NAME);
 }
 
+/* ── Glossary ── */
+let GLOSSARY = [];
+async function loadGlossary(){
+    try { GLOSSARY = (await (await fetch('/api/kb/glossary')).json()).terms || []; }
+    catch(e){ GLOSSARY = []; }
+    if (GLOSSARY.length){
+        document.getElementById('glossaryNav').innerHTML =
+            `<div class="nav-section-label">Reference</div>` +
+            `<button class="nav-item" onclick="openGlossary()">${bookIco()}<span class="nav-label">Glossary</span><span class="nav-count">${GLOSSARY.length}</span></button>`;
+    } else {
+        document.getElementById('glossaryNav').innerHTML = '';
+    }
+}
+function bookIco(){ return '<svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>'; }
+function openGlossary(){
+    toggleSidebar(false);
+    const s = document.getElementById('glossarySearch');
+    s.value = '';
+    renderGlossary('');
+    document.getElementById('glossaryModal').classList.add('active');
+    setTimeout(()=>s.focus(), 30);
+}
+function closeGlossary(){ document.getElementById('glossaryModal').classList.remove('active'); }
+function renderGlossary(q){
+    q = (q||'').trim().toLowerCase();
+    const terms = GLOSSARY.filter(t => !q || t.term.toLowerCase().includes(q) || (t.definition||'').toLowerCase().includes(q));
+    const el = document.getElementById('glossaryList');
+    if (!terms.length){ el.innerHTML = '<div class="glossary-empty">No matching terms.</div>'; return; }
+    let html = '', letter = '';
+    terms.forEach(t => {
+        const L = (t.letter || t.term[0] || '#').toUpperCase();
+        if (L !== letter){ letter = L; html += `<div class="glossary-letter">${esc(L)}</div>`; }
+        html += `<div class="glossary-row"><div class="glossary-term">${esc(t.term)}</div><div class="glossary-def">${esc(t.definition||'')}</div></div>`;
+    });
+    el.innerHTML = html;
+}
+
 /* ── Lightbox ── */
 let LB_IMAGES = [], lbIndex = 0;
 let lbZoom = 1, lbPanX = 0, lbPanY = 0;
@@ -594,7 +649,7 @@ document.addEventListener('keydown', e=>{
         if (e.key==='-') lbZoomBy(1/1.4);
         return;
     }
-    if (e.key==='Escape'){ closeCmdk(); closeDoc(); }
+    if (e.key==='Escape'){ closeCmdk(); closeGlossary(); closeDoc(); }
 });
 
 /* ── Init ── */
@@ -609,6 +664,7 @@ document.addEventListener('keydown', e=>{
     history.replaceState({cat: currentCat, doc: BOOT.doc || null}, '', location.pathname + location.search);
     await loadCategories();
     await loadDocs();
+    loadGlossary();
     {% if branding.last_sync %}document.getElementById('syncMeta').textContent = 'Updated {{ branding.last_sync[:10] }}';{% endif %}
     if (BOOT.doc){
         openDoc(BOOT.doc, {history:false});

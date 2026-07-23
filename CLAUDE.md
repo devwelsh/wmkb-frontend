@@ -101,7 +101,8 @@ and are edited in the admin's Branding / Navigation tabs.
 
 This app consumes Warehouse Manager's external KB API (added in WM v1.7.0):
 `GET /api/external/kb/{categories,documents,documents/<id>,documents/<id>/download,documents/<id>/featured}`,
-authenticated with `X-API-Key`. Generate a key in Warehouse Manager →
+plus `GET /api/external/kb/glossary` (WM v1.7.5; older WMs 404 and the local
+glossary mirror is left untouched), authenticated with `X-API-Key`. Generate a key in Warehouse Manager →
 Settings → Options → API Keys. If that API changes, update `wm_client.py` and the
 sync upsert in `sync.py`.
 

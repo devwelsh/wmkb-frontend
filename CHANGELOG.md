@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.2.0
+- **The glossary now syncs from Warehouse Manager** (requires WM v1.7.5, which adds `GET /api/external/kb/glossary` to the external KB API). Terms mirror into a local `kb_glossary` table (migration v3) on every sync run — full replace, so edits, deletions and the WM glossary sub-module toggle all propagate. Older Warehouse Manager versions without the endpoint are detected (404) and simply leave the mirror untouched.
+- The public site shows the synced glossary: a **Glossary** entry appears in the sidebar under "Reference" (only when terms exist), opening a window with the terms grouped by letter and a filter box that searches terms and definitions. Served at `/api/kb/glossary`.
+
 ## v1.1.8
 - Lightbox zoom is now a single click: click zooms in at that point, click again zooms back out (was double-click). Dragging to pan never triggers the zoom toggle.
 
