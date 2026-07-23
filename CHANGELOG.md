@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.1.2
+- Removed the Share button (and its drop-down of share targets) from the document window; **Copy link** stays and is the one way to pass a document around.
+- Removed the Search button from the page header — it duplicated the sidebar search box. The sidebar box and the ⌘K / Ctrl K shortcut both still open the search window.
+- Associated parts now live inside the document window's detail strip alongside Category, Vehicle fitment, File and Size, instead of in their own block underneath — everything factual about the document is now in one place. The part chips are still links.
+
 ## v1.1.1
 - The search shortcut chip now draws the ⌘ symbol as a bundled icon instead of relying on the visitor's fonts, which rendered it at the wrong size on Windows — and on Windows and Linux it now reads "Ctrl K" instead, matching the keys those visitors actually press (both Ctrl+K and ⌘K have always worked).
 - The search window (⌘K) now has a solid background instead of a frosted-glass one, so the page behind it no longer shows through the results.

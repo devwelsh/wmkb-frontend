@@ -114,11 +114,6 @@
                     <div class="page-sub" id="pageSub"></div>
                 </div>
                 <div class="head-tools">
-                    <button class="search-launch" onclick="openCmdk()">
-                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-                        Search
-                        <span class="kbd-chip" data-kbd><svg class="kbd-cmd" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 3a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3H6a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3V6a3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3h12a3 3 0 0 0 3-3 3 3 0 0 0-3-3z"/></svg>K</span>
-                    </button>
                     <div class="view-toggle" role="tablist" aria-label="View">
                         <span class="view-pill" id="viewPill"></span>
                         <button class="seg" id="viewCards" onclick="setView('cards')">
@@ -180,14 +175,10 @@
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M4 19h16"/></svg>
                     <span>Download document</span>
                 </a>
-                <button class="modal-action" onclick="shareDoc(event)" title="Share" aria-label="Share this document">
-                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>
-                </button>
                 <button class="modal-action" onclick="copyDocLink()" title="Copy link" aria-label="Copy link to this document">
                     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>
                 </button>
                 <button class="modal-close" onclick="closeDoc()" aria-label="Close">&times;</button>
-                <div class="share-menu" id="shareMenu" role="menu"></div>
             </div>
         </div>
         <div class="modal-body" id="docModalBody"></div>
@@ -379,7 +370,6 @@ async function openDoc(id, opts){
     if (!d){ try { d = await (await fetch('/api/kb/documents/'+id)).json(); } catch(e){ return; } }
     if (!d || d.error) return;
     CURRENT_DOC = d;
-    hideShareMenu();
     document.getElementById('docModalTitle').textContent = d.title;
     const cat = CATS.find(c=>c.id===d.category_id);
     const fit = fitList(d);
@@ -390,10 +380,10 @@ async function openDoc(id, opts){
     if (fit.length) meta += `<div class="meta-fit"><div class="mk">Vehicle Fitment</div><div class="mv">${fit.map(esc).join(' · ')}</div></div>`;
     if (d.original_name) meta += `<div><div class="mk">File</div><div class="mv">${esc(d.original_name)}</div></div>`;
     if (d.file_size) meta += `<div><div class="mk">Size</div><div class="mv">${fmtSize(d.file_size)}</div></div>`;
+    if ((d.associated_parts||[]).length) meta += `<div class="meta-fit"><div class="mk">Associated Parts</div><div class="mv meta-chips">${partChips(d,'chip')}</div></div>`;
     if (meta) body += `<div class="detail-meta">${meta}</div>`;
     if (d.description) body += `<div style="font-size:0.96rem;line-height:1.7;color:var(--ink-soft);margin:0.6rem 0 1.3rem;">${d.description}</div>`;
-    if ((d.associated_parts||[]).length) body += `<div style="margin-bottom:1.3rem;"><div class="detail-label">Associated Parts</div><div class="chip-row">${partChips(d,'chip')}</div></div>`;
-    // The download button lives in the header alongside Share / Copy link.
+    // The download button lives in the header alongside Copy link.
     const dl = document.getElementById('docDownload');
     dl.hidden = !d.has_file;
     if (d.has_file){
@@ -417,7 +407,6 @@ function closeDoc(opts){
     const m = document.getElementById('docModal');
     if (!m.classList.contains('active')) return;
     m.classList.remove('active');
-    hideShareMenu();
     CURRENT_DOC = null;
     if (opts.history === false) return;
     // Back if we pushed the document ourselves, so the Back button stays honest;
@@ -429,11 +418,9 @@ function closeDoc(opts){
 
 /* ── Sharing ── */
 function docShareUrl(){ return CURRENT_DOC ? location.origin + CURRENT_DOC.url : location.href; }
-function hideShareMenu(){ const m=document.getElementById('shareMenu'); if(m) m.classList.remove('open'); }
 
 async function copyDocLink(){
     const url = docShareUrl();
-    hideShareMenu();
     try {
         // clipboard.writeText needs a secure context — plain-http deployments
         // fall through to the old textarea trick rather than silently failing.
@@ -449,33 +436,6 @@ async function copyDocLink(){
         toast('Link copied');
     } catch(e){ window.prompt('Copy this link:', url); }
 }
-
-async function shareDoc(e){
-    if (e) e.stopPropagation();
-    const url = docShareUrl(), title = CURRENT_DOC ? CURRENT_DOC.title : SITE_NAME;
-    if (navigator.share){
-        try { await navigator.share({title: title, text: title, url: url}); }
-        catch(err){ /* the visitor dismissed the share sheet */ }
-        return;
-    }
-    buildShareMenu(url, title);
-    document.getElementById('shareMenu').classList.toggle('open');
-}
-
-function buildShareMenu(url, title){
-    const u = encodeURIComponent(url), t = encodeURIComponent(title);
-    const targets = [
-        ['Email',    `mailto:?subject=${t}&body=${t}%0A%0A${u}`],
-        ['X',        `https://twitter.com/intent/tweet?url=${u}&text=${t}`],
-        ['Facebook', `https://www.facebook.com/sharer/sharer.php?u=${u}`],
-        ['LinkedIn', `https://www.linkedin.com/sharing/share-offsite/?url=${u}`],
-        ['WhatsApp', `https://wa.me/?text=${t}%20${u}`],
-    ];
-    document.getElementById('shareMenu').innerHTML =
-        targets.map(([label,href])=>`<a class="share-item" role="menuitem" href="${esc(href)}" target="_blank" rel="noopener" onclick="hideShareMenu()">${label}</a>`).join('')
-        + `<button class="share-item" role="menuitem" onclick="copyDocLink()">Copy link</button>`;
-}
-document.addEventListener('click', e=>{ if(!e.target.closest('.modal-tools')) hideShareMenu(); });
 
 /* ── Routing ── */
 function applyState(st){
