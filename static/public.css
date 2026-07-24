@@ -356,7 +356,7 @@ a.mini-chip.part:hover { background: var(--accent); color: var(--on-accent); }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* ── Command palette ── */
-.cmdk-overlay { position: fixed; inset: 0; z-index: 300; display: flex; align-items: flex-start; justify-content: center; padding: 12vh 1.2rem 1.2rem; background: rgba(16, 28, 24, 0.34); backdrop-filter: blur(6px); opacity: 0; pointer-events: none; transition: opacity var(--speed-fast) var(--ease); }
+.cmdk-overlay { position: fixed; inset: 0; z-index: 300; display: flex; align-items: flex-start; justify-content: center; padding: 12vh 1.2rem 1.2rem; background: rgba(16, 28, 24, 0.55); opacity: 0; pointer-events: none; transition: opacity var(--speed-fast) var(--ease); }
 .cmdk-overlay.active { opacity: 1; pointer-events: all; }
 .cmdk { width: 100%; max-width: 660px; border-radius: var(--radius-lg); overflow: hidden; background: var(--surface-solid); border: 1px solid var(--edge); box-shadow: var(--shadow-lg); transform: translateY(-14px) scale(0.98); transition: transform var(--speed) var(--ease); }
 .cmdk-overlay.active .cmdk { transform: none; }

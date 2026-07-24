@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.2.3
+- The backdrop behind the search window (⌘K / Ctrl K) no longer blurs the page — it's the same plain darkened overlay the document window uses.
+
 ## v1.2.2
 - A document URL with a trailing slash (`/category/document/`) no longer 404s — it permanently redirects to the canonical form without the slash. Category pages already accepted both forms.
 
