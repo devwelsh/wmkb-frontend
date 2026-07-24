@@ -149,7 +149,7 @@
                         {% if page.doc.associated_parts %}<p><strong>Associated parts:</strong>
                             {% for p in page.doc.associated_parts %}{{ p.number or p.url }}{% if not loop.last %}, {% endif %}{% endfor %}</p>{% endif %}
                         {% if page.doc.download_url %}<p><a href="{{ page.doc.download_url }}">Download {{ page.doc.original_name or page.doc.title }}</a></p>{% endif %}
-                        <p><a href="/kb/{{ page.doc.category_slug }}">← Back to the category</a></p>
+                        <p><a href="/{{ page.doc.category_slug }}">← Back to the category</a></p>
                     {% else %}
                         <ul>
                             {% for d in page.docs %}<li><a href="{{ d.url }}">{{ d.title }}</a></li>{% endfor %}
@@ -289,9 +289,9 @@ function folderIco(){ return '<svg class="nav-ico" viewBox="0 0 24 24" fill="non
 
 /* ── URLs & history ── */
 function catPath(id){
-    if (id==='null') return '/kb/uncategorized';
+    if (id==='null') return '/uncategorized';
     const c = CATS.find(x=>String(x.id)===String(id));
-    return (id!=='all' && c && c.slug) ? '/kb/'+c.slug : '/';
+    return (id!=='all' && c && c.slug) ? '/'+c.slug : '/';
 }
 function catName(id){
     const c = CATS.find(x=>String(x.id)===String(id));
@@ -388,7 +388,7 @@ function tableHtml(){
         return `<tr onclick="openDoc(${d.id})">
             <td><div class="idx-title"><div class="idx-thumb">${thumb}</div><a class="idx-title-text" href="${esc(d.url)}" onclick="return docClick(event,${d.id})">${esc(d.title)}</a></div></td>
             <td>${cat?`<a class="cell-link" href="${esc(catPath(cat.id))}" onclick="return navClick(event,'${cat.id}')">${esc(cat.name)}</a>`
-                     :`<a class="cell-link cell-muted" href="/kb/uncategorized" onclick="return navClick(event,'null')">Uncategorized</a>`}</td>
+                     :`<a class="cell-link cell-muted" href="/uncategorized" onclick="return navClick(event,'null')">Uncategorized</a>`}</td>
             <td>${fit}</td>
             <td>${parts}</td>
             <td><span class="mini-chip">${esc((d.ext||'').toUpperCase()||'—')}</span></td>

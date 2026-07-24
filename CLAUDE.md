@@ -66,9 +66,13 @@ server-rendered by Jinja (crawlers don't run JS). Files are served from the
 cache by `remote_id` via `/kb/<id>/download` and `/kb/<id>/featured` (public,
 `nosniff`; non-previewable types download as attachments).
 
-**URLs & SEO (v1.1.0).** Public pages are `/`, `/kb/<category-slug>` and
-`/kb/<category-slug>/<document-slug>`; `/kb/<id>` 301s to a document's canonical
-URL, as does a request with the wrong category segment. It is still one SPA —
+**URLs & SEO (v1.1.0, root-level since v1.2.1).** Public pages are `/`,
+`/<category-slug>` and `/<category-slug>/<document-slug>`; `/kb/<id>` 301s to a
+document's canonical URL, as do the legacy `/kb/<category>[/<document>]` forms
+and a request with the wrong category segment. File endpoints stay under `/kb/`
+(`/kb/<id>/download`, `/kb/<id>/featured`). Because category slugs live at the
+URL root, `RESERVED_CAT_SLUGS` also holds every root namespace (`admin`, `api`,
+`kb`, `static`, `branding`, …). It is still one SPA —
 each route renders `index.html` with a `page` dict (`title`, `heading`,
 `description`, `canonical`, `robots`, `image`, `jsonld`, `boot`, `docs`, `doc`)
 that supplies the per-page `<head>`, the `<h1>`, a `<noscript>` copy for

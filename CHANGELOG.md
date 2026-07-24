@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.2.1
+- Public URLs dropped the `/kb/` prefix: categories now live at `/<category>` and documents at `/<category>/<document>`. Every previously published `/kb/...` link keeps working via a permanent redirect, and the numeric short link `/kb/<id>` plus the file endpoints (`/kb/<id>/download`, `/kb/<id>/featured`) are unchanged. Root-level names the app itself uses (`admin`, `api`, `kb`, `static`, `branding`, …) are reserved so a category slug can never collide with them. The sitemap, canonical tags, breadcrumbs and share links all use the new addresses.
+
 ## v1.2.0
 - **The glossary now syncs from Warehouse Manager** (requires WM v1.7.5, which adds `GET /api/external/kb/glossary` to the external KB API). Terms mirror into a local `kb_glossary` table (migration v3) on every sync run — full replace, so edits, deletions and the WM glossary sub-module toggle all propagate. Older Warehouse Manager versions without the endpoint are detected (404) and simply leave the mirror untouched.
 - The public site shows the synced glossary: a **Glossary** entry appears in the sidebar under "Reference" (only when terms exist), opening a window with the terms grouped by letter and a filter box that searches terms and definitions. Served at `/api/kb/glossary`.

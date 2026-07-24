@@ -28,7 +28,7 @@ from flask_login import (LoginManager, UserMixin, login_user, logout_user,
 from werkzeug.routing import BaseConverter
 from werkzeug.security import generate_password_hash, check_password_hash
 
-APP_VERSION = '1.2.0'
+APP_VERSION = '1.2.1'
 
 # ── Paths & config ────────────────────────────────────────────────────────
 DATA_DIR = os.environ.get('WMKB_DATA_DIR', os.path.dirname(os.path.abspath(__file__)))
@@ -111,12 +111,15 @@ def _security_headers(resp):
 
 
 # ── URL slugs ─────────────────────────────────────────────────────────────
-# Public pages live at /kb/<category-slug>/<document-slug>. Slugs are derived
+# Public pages live at /<category-slug>/<document-slug>. Slugs are derived
 # from the Warehouse Manager category slug / document title and stored locally,
 # because the URL has to stay stable between syncs for search engines.
 UNCATEGORIZED_SLUG = 'uncategorized'
-# Category slugs share the /kb/ namespace with these, so they can't be taken.
-RESERVED_CAT_SLUGS = {UNCATEGORIZED_SLUG, 'download', 'featured', 'search', 'all'}
+# Category slugs live at the URL root, so anything routed there (or reserved
+# for app namespaces) can never be taken by a category.
+RESERVED_CAT_SLUGS = {UNCATEGORIZED_SLUG, 'download', 'featured', 'search', 'all',
+                      'admin', 'api', 'kb', 'static', 'branding', 'favicon',
+                      'sitemap', 'robots'}
 
 
 def _slugify(text, max_len=80):
@@ -497,9 +500,10 @@ def _public_branding_ctx():
 
 # ── Readable public URLs ──────────────────────────────────────────────────
 # /                               all documents
-# /kb/<category>                  one category
-# /kb/<category>/<document>       one document (canonical share link)
+# /<category>                     one category
+# /<category>/<document>          one document (canonical share link)
 # /kb/<id>                        numeric permalink → 301 to the canonical URL
+# /kb/<category>[/<document>]     legacy (pre-1.2.1) → 301 to the root form
 #
 # The page is still the same single-page app; these routes exist so every
 # document has its own address with server-rendered <title>/description/OG tags
@@ -517,7 +521,7 @@ def _clean_text(s, limit=300):
 
 def _crawlable(rows):
     return [{'title': r['title'] or r['original_name'] or f"Document {r['remote_id']}",
-             'url': (f"/kb/{r['category_slug'] or UNCATEGORIZED_SLUG}/{r['slug']}"
+             'url': (f"/{r['category_slug'] or UNCATEGORIZED_SLUG}/{r['slug']}"
                      if r['slug'] else f"/kb/{r['remote_id']}")}
             for r in rows]
 
@@ -561,7 +565,18 @@ def public_kb_root():
     return redirect('/', code=301)
 
 
+# Pre-1.2.1 the pages lived under /kb/ — published links must keep working.
 @app.route('/kb/<slug:cat_slug>', strict_slashes=False)
+def legacy_category(cat_slug):
+    return redirect(f'/{cat_slug}', code=301)
+
+
+@app.route('/kb/<slug:cat_slug>/<slug:doc_slug>')
+def legacy_document(cat_slug, doc_slug):
+    return redirect(f'/{cat_slug}/{doc_slug}', code=301)
+
+
+@app.route('/<slug:cat_slug>', strict_slashes=False)
 def public_category(cat_slug):
     conn = get_db()
     b = get_branding(conn)
@@ -575,7 +590,7 @@ def public_category(cat_slug):
         name, boot_cat, cat_filter = cat['name'], str(cat['remote_id']), cat['remote_id']
     rows = _query_documents(conn, cat_filter)
     conn.close()
-    path = f'/kb/{cat_slug}'
+    path = f'/{cat_slug}'
     return _render_public({
         'title': f"{name} · {b['site_name']}",
         'heading': name,
@@ -587,7 +602,7 @@ def public_category(cat_slug):
     })
 
 
-@app.route('/kb/<slug:cat_slug>/<slug:doc_slug>')
+@app.route('/<slug:cat_slug>/<slug:doc_slug>')
 def public_document(cat_slug, doc_slug):
     conn = get_db()
     row = conn.execute(_DOC_SELECT + " WHERE d.slug = ?", (doc_slug,)).fetchone()
@@ -607,7 +622,7 @@ def public_document(cat_slug, doc_slug):
     cat_name = cat['name'] if cat else 'Uncategorized'
     desc = _clean_text(d['description']) or _clean_text(
         f"{d['title']} — {cat_name} documentation from {b['site_name']}.")
-    crumbs = [(b['site_name'], '/'), (cat_name, f"/kb/{d['category_slug']}"), (d['title'], d['url'])]
+    crumbs = [(b['site_name'], '/'), (cat_name, f"/{d['category_slug']}"), (d['title'], d['url'])]
     return _render_public({
         'title': f"{d['title']} · {b['site_name']}",
         'heading': d['title'],
@@ -622,7 +637,7 @@ def public_document(cat_slug, doc_slug):
             {'@context': 'https://schema.org', '@type': 'DigitalDocument',
              'name': d['title'], 'description': desc, 'url': _abs_url(d['url']),
              'inLanguage': 'en', 'isPartOf': {'@type': 'CollectionPage', 'name': cat_name,
-                                              'url': _abs_url(f"/kb/{d['category_slug']}")},
+                                              'url': _abs_url(f"/{d['category_slug']}")},
              **({'image': _abs_url(d['featured_url'])} if d['featured_url'] else {}),
              **({'encodingFormat': d['mime_type']} if d['mime_type'] else {}),
              **({'dateCreated': d['created_at']} if d['created_at'] else {})},
@@ -651,9 +666,9 @@ def sitemap():
     docs = conn.execute(_DOC_SELECT + " WHERE d.slug != ''" + _DOC_ORDER).fetchall()
     conn.close()
     entries = [('/', '')]
-    entries += [(f"/kb/{c['slug']}", '') for c in cats]
+    entries += [(f"/{c['slug']}", '') for c in cats]
     if uncat:
-        entries.append((f'/kb/{UNCATEGORIZED_SLUG}', ''))
+        entries.append((f'/{UNCATEGORIZED_SLUG}', ''))
     for r in docs:
         lastmod = (r['synced_at'] or '')[:10]
         entries.append((_doc_public_dict(r)['url'],
@@ -714,7 +729,7 @@ def _doc_public_dict(row):
         'slug': slug,
         'category_slug': cat_slug,
         # Canonical page for this document — what the UI links to and shares.
-        'url': f'/kb/{cat_slug}/{slug}' if slug else f"/kb/{d['remote_id']}",
+        'url': f'/{cat_slug}/{slug}' if slug else f"/kb/{d['remote_id']}",
         'title': d['title'],
         'description': d['description'],
         'original_name': d['original_name'],
