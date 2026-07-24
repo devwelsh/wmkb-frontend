@@ -28,7 +28,7 @@ from flask_login import (LoginManager, UserMixin, login_user, logout_user,
 from werkzeug.routing import BaseConverter
 from werkzeug.security import generate_password_hash, check_password_hash
 
-APP_VERSION = '1.2.1'
+APP_VERSION = '1.2.2'
 
 # ── Paths & config ────────────────────────────────────────────────────────
 DATA_DIR = os.environ.get('WMKB_DATA_DIR', os.path.dirname(os.path.abspath(__file__)))
@@ -571,7 +571,7 @@ def legacy_category(cat_slug):
     return redirect(f'/{cat_slug}', code=301)
 
 
-@app.route('/kb/<slug:cat_slug>/<slug:doc_slug>')
+@app.route('/kb/<slug:cat_slug>/<slug:doc_slug>', strict_slashes=False)
 def legacy_document(cat_slug, doc_slug):
     return redirect(f'/{cat_slug}/{doc_slug}', code=301)
 
@@ -600,6 +600,12 @@ def public_category(cat_slug):
         'docs': _crawlable(rows),
         'jsonld': _breadcrumbs([(b['site_name'], '/'), (name, path)]),
     })
+
+
+@app.route('/<slug:cat_slug>/<slug:doc_slug>/')
+def public_document_slash(cat_slug, doc_slug):
+    # A trailing slash is the same address — send it to the canonical form.
+    return redirect(f'/{cat_slug}/{doc_slug}', code=301)
 
 
 @app.route('/<slug:cat_slug>/<slug:doc_slug>')

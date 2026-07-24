@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.2.2
+- A document URL with a trailing slash (`/category/document/`) no longer 404s — it permanently redirects to the canonical form without the slash. Category pages already accepted both forms.
+
 ## v1.2.1
 - Public URLs dropped the `/kb/` prefix: categories now live at `/<category>` and documents at `/<category>/<document>`. Every previously published `/kb/...` link keeps working via a permanent redirect, and the numeric short link `/kb/<id>` plus the file endpoints (`/kb/<id>/download`, `/kb/<id>/featured`) are unchanged. Root-level names the app itself uses (`admin`, `api`, `kb`, `static`, `branding`, …) are reserved so a category slug can never collide with them. The sitemap, canonical tags, breadcrumbs and share links all use the new addresses.
 
