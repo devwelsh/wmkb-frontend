@@ -12,6 +12,12 @@ services:
       - SECRET_KEY=${SECRET_KEY:-}
       - WMKB_DATA_DIR=/data
       - WMKB_SECURE_COOKIES=${WMKB_SECURE_COOKIES:-}
+      # This deployment is documented as running behind a reverse proxy, so
+      # X-Forwarded-* trust defaults on. Set to 0 if the port is exposed directly.
+      - WMKB_BEHIND_PROXY=${WMKB_BEHIND_PROXY:-1}
+      # Set to 1 to allow an http:// or loopback Warehouse Manager URL
+      # (internal/dev deployments only — the default requires https).
+      - WMKB_ALLOW_INTERNAL_WM=${WMKB_ALLOW_INTERNAL_WM:-}
 
   # Scheduled sync runs as its own process (no in-web-worker scheduler election).
   # Shares the same image, code, and data volume; it is the single DB writer for
@@ -27,6 +33,7 @@ services:
     environment:
       - SECRET_KEY=${SECRET_KEY:-}
       - WMKB_DATA_DIR=/data
+      - WMKB_ALLOW_INTERNAL_WM=${WMKB_ALLOW_INTERNAL_WM:-}
     depends_on:
       - wmkb-frontend
 

@@ -12,23 +12,28 @@ import os
 import re
 import json
 import uuid
+import logging
 import secrets
 import hashlib
 import unicodedata
 from io import BytesIO
 from datetime import datetime, timedelta, timezone
 from functools import wraps
+from urllib.parse import urlsplit
 from xml.sax.saxutils import escape as _xml_escape
 
 import sqlite3
+import nh3
 from flask import (Flask, render_template, request, jsonify, redirect, url_for,
                    send_from_directory, send_file, session, abort, Response)
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from flask_login import (LoginManager, UserMixin, login_user, logout_user,
                          login_required, current_user)
 from werkzeug.routing import BaseConverter
 from werkzeug.security import generate_password_hash, check_password_hash
 
-APP_VERSION = '1.2.3'
+APP_VERSION = '1.3.0'
 
 # ── Paths & config ────────────────────────────────────────────────────────
 DATA_DIR = os.environ.get('WMKB_DATA_DIR', os.path.dirname(os.path.abspath(__file__)))
@@ -42,10 +47,14 @@ os.makedirs(BRANDING_DIR, exist_ok=True)
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 8 * 1024 * 1024  # branding uploads only
 
-# Served behind a reverse proxy — trust one hop of X-Forwarded-* so request URLs
-# (and the Open Graph absolute image URL) reflect the real external https host.
-from werkzeug.middleware.proxy_fix import ProxyFix
-app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+# Behind a reverse proxy, trust one hop of X-Forwarded-* so request URLs (and
+# the Open Graph absolute image URL) reflect the real external https host.
+# Gated on WMKB_BEHIND_PROXY (set in the compose files): trusting these headers
+# with no proxy in front lets anyone spoof the host/proto in canonical URLs,
+# the sitemap, and Turnstile's remote-ip.
+if os.environ.get('WMKB_BEHIND_PROXY', '').lower() in ('1', 'true', 'yes'):
+    from werkzeug.middleware.proxy_fix import ProxyFix
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 
 
 class SlugConverter(BaseConverter):
@@ -86,10 +95,73 @@ app.config.update(
     REMEMBER_COOKIE_DURATION=60 * 60 * 24 * 30,
 )
 
-# Account-lockout policy (admin login)
+# Account-lockout policy (admin login). Lockouts escalate (and reset daily) so
+# a stranger hammering the login can't permanently deny the real admin —
+# the per-IP rate limit below is the primary brake.
 LOGIN_FAIL_LIMIT = 5
-LOCKOUT_MINUTES = 15
+LOCKOUT_STEPS_MINUTES = (1, 5, 15)
 PASSWORD_MIN_LENGTH = 10
+
+# Per-IP rate limiting (in-memory: per-worker, which is fine for a small
+# fixed worker count — the point is stopping bulk abuse, not exact counts).
+limiter = Limiter(get_remote_address, app=app, storage_uri='memory://',
+                  headers_enabled=True)
+
+logging.basicConfig(level=logging.INFO)
+app.logger.setLevel(logging.INFO)
+
+
+def _audit(event, **details):
+    """Structured audit line (who/ip/what) so failed logins, lockouts and
+    admin changes are visible in the app log."""
+    try:
+        user = current_user.username if current_user.is_authenticated else '-'
+    except Exception:
+        user = '-'
+    extra = ' '.join(f'{k}={v}' for k, v in details.items())
+    app.logger.info('AUDIT %s user=%s ip=%s%s', event, user,
+                    request.remote_addr, f' {extra}' if extra else '')
+
+
+@app.errorhandler(429)
+def _handle_429(e):
+    return jsonify({'error': 'Too many requests. Please slow down.'}), 429
+
+
+# CSRF guard: SameSite=Lax alone doesn't stop cross-origin same-site POSTs, so
+# every mutating call to the admin/auth/setup APIs must prove it came from this
+# origin. Browsers always attach Origin to non-GET fetches; anything without a
+# matching Origin (or Referer as fallback) is rejected.
+_CSRF_GUARDED = ('/api/admin', '/api/auth', '/api/setup')
+
+
+@app.before_request
+def _csrf_origin_guard():
+    if request.method in ('GET', 'HEAD', 'OPTIONS'):
+        return None
+    if not request.path.startswith(_CSRF_GUARDED):
+        return None
+    source = request.headers.get('Origin') or request.headers.get('Referer') or ''
+    if urlsplit(source).netloc != request.host:
+        _audit('csrf_rejected', path=request.path, origin=source or '(none)')
+        return jsonify({'error': 'Cross-origin request rejected'}), 403
+    return None
+
+# Synced descriptions are semi-trusted upstream HTML: a KB author (or a
+# compromised Warehouse Manager) must not be able to run script on this origin,
+# because this origin also holds the admin session cookies.
+_DESC_TAGS = {'p', 'br', 'b', 'strong', 'i', 'em', 'ul', 'ol', 'li', 'a',
+              'code', 'pre', 'h3', 'h4', 'blockquote'}
+_DESC_ATTRS = {'a': {'href'}}
+_DESC_SCHEMES = {'http', 'https', 'mailto'}
+
+
+def _sanitize_description(html):
+    if not html:
+        return ''
+    return nh3.clean(str(html), tags=_DESC_TAGS, attributes=_DESC_ATTRS,
+                     url_schemes=_DESC_SCHEMES, link_rel='noopener noreferrer')
+
 
 BRANDING_EXTS = {'png', 'svg', 'jpg', 'jpeg', 'ico'}
 _BRANDING_NAME_RE = re.compile(r'^(?:logo|favicon|apple|og)-[a-f0-9]{32}\.(?:png|svg|jpg|jpeg|ico)$', re.IGNORECASE)
@@ -103,7 +175,21 @@ def _security_headers(resp):
     resp.headers.setdefault('Permissions-Policy',
                             'geolocation=(), camera=(), microphone=(), payment=()')
     # The public site is meant to be framed nowhere by default; admin too.
+    # (X-Frame-Options stays SAMEORIGIN globally because the app frames its own
+    # PDF downloads; the HTML pages get the stricter frame-ancestors below.)
     resp.headers.setdefault('X-Frame-Options', 'SAMEORIGIN')
+    if resp.mimetype == 'text/html':
+        # Stage-1 CSP: no script-src yet (the templates rely on inline JS), but
+        # this alone blocks plugin content, <base> hijacks, framing, and form
+        # exfiltration — the containment layer for anything that slips through
+        # the upstream-content sanitizers.
+        resp.headers.setdefault(
+            'Content-Security-Policy',
+            "object-src 'none'; base-uri 'self'; frame-ancestors 'none'; "
+            "form-action 'self'")
+    if request.path == '/admin' or request.path.startswith(('/admin/', '/api/admin')):
+        resp.headers.setdefault('X-Robots-Tag', 'noindex, nofollow')
+        resp.headers['Cache-Control'] = 'no-store'
     if _SECURE_COOKIES:
         resp.headers.setdefault('Strict-Transport-Security',
                                 'max-age=31536000; includeSubDomains')
@@ -283,7 +369,19 @@ def _migrate_v3(conn):
     conn.execute("CREATE INDEX IF NOT EXISTS idx_glossary_term ON kb_glossary(term)")
 
 
-MIGRATIONS = [(1, _migrate_v1), (2, _migrate_v2), (3, _migrate_v3)]
+def _migrate_v4(conn):
+    """Security hardening: a per-user session epoch (bumped on password change
+    so other sessions die) and daily-capped escalating lockouts."""
+    cols = {r['name'] for r in conn.execute("PRAGMA table_info(users)")}
+    if 'session_epoch' not in cols:
+        conn.execute("ALTER TABLE users ADD COLUMN session_epoch INTEGER NOT NULL DEFAULT 0")
+    if 'lockout_count' not in cols:
+        conn.execute("ALTER TABLE users ADD COLUMN lockout_count INTEGER NOT NULL DEFAULT 0")
+    if 'lockout_day' not in cols:
+        conn.execute("ALTER TABLE users ADD COLUMN lockout_day TEXT DEFAULT ''")
+
+
+MIGRATIONS = [(1, _migrate_v1), (2, _migrate_v2), (3, _migrate_v3), (4, _migrate_v4)]
 
 
 def init_db():
@@ -302,6 +400,12 @@ def init_db():
                 conn.execute("INSERT INTO schema_version (version) VALUES (?)", (version,))
                 conn.commit()
         conn.close()
+        # The DB holds password hashes and the WM API key — keep it private
+        # even when created with a permissive umask (dev runs in the repo root).
+        try:
+            os.chmod(DATABASE, 0o600)
+        except OSError:
+            pass
     finally:
         fcntl.flock(lock_file, fcntl.LOCK_UN)
         lock_file.close()
@@ -349,6 +453,33 @@ def get_wm_connection(conn):
     return _get_setting(conn, 'wm_connection', {'base_url': '', 'api_key': ''}) or {}
 
 
+def _validate_wm_base_url(url):
+    """SSRF guard for the admin-supplied Warehouse Manager URL: https only, no
+    loopback/link-local targets. WMKB_ALLOW_INTERNAL_WM=1 lifts both rules for
+    dev and LAN deployments — an explicit opt-in, not the default.
+    Returns (ok, error_message)."""
+    import ipaddress
+    u = urlsplit(str(url or ''))
+    if u.scheme not in ('http', 'https') or not u.hostname:
+        return False, 'Base URL must be a full http(s):// URL'
+    if os.environ.get('WMKB_ALLOW_INTERNAL_WM', '').lower() in ('1', 'true', 'yes'):
+        return True, None
+    if u.scheme != 'https':
+        return False, ('Base URL must use https:// (set WMKB_ALLOW_INTERNAL_WM=1 '
+                       'to allow http for internal deployments)')
+    host = u.hostname.lower()
+    try:
+        ip = ipaddress.ip_address(host)
+        if ip.is_loopback or ip.is_link_local:
+            return False, ('Loopback/link-local Warehouse Manager URLs are blocked '
+                           '(set WMKB_ALLOW_INTERNAL_WM=1 for internal deployments)')
+    except ValueError:
+        if host == 'localhost' or host.endswith('.localhost'):
+            return False, ('Loopback Warehouse Manager URLs are blocked '
+                           '(set WMKB_ALLOW_INTERNAL_WM=1 for internal deployments)')
+    return True, None
+
+
 def get_sync_config(conn):
     cfg = {'enabled': True, 'interval_minutes': 30}
     cfg.update(_get_setting(conn, 'sync_config', {}) or {})
@@ -375,6 +506,8 @@ def _sanitize_links(raw):
         if not label or not url:
             continue
         low = url.lower()
+        if low.startswith('//'):     # scheme-relative = external URL in disguise
+            continue
         if not (low.startswith(('http://', 'https://', 'mailto:', 'tel:', '/', '#'))):
             continue
         style = item.get('style', 'link')
@@ -408,6 +541,13 @@ class User(UserMixin):
         self.display_name = row['display_name'] or row['username']
         self.role = row['role']
         self._active = bool(row['active'])
+        self._epoch = row['session_epoch']
+
+    def get_id(self):
+        # The session token carries the epoch, so bumping session_epoch in the
+        # DB (password change) invalidates every other outstanding session and
+        # remember-cookie at the next request.
+        return f'{self.id}:{self._epoch}'
 
     @property
     def is_admin(self):
@@ -422,11 +562,17 @@ class User(UserMixin):
 
 
 @login_manager.user_loader
-def load_user(user_id):
+def load_user(token):
+    uid, _, epoch = str(token).partition(':')
+    if not uid.isdigit():
+        return None
     conn = get_db()
-    row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+    row = conn.execute("SELECT * FROM users WHERE id = ?", (int(uid),)).fetchone()
     conn.close()
-    return User(row) if row else None
+    # Pre-epoch tokens (no ':') fail the comparison too: one forced re-login.
+    if not row or epoch != str(row['session_epoch']):
+        return None
+    return User(row)
 
 
 @login_manager.unauthorized_handler
@@ -721,6 +867,13 @@ def _handle_404(e):
     }, 404)
 
 
+def _safe_part_url(url):
+    """Associated-parts URLs come from upstream metadata — only plain
+    http(s) links survive (no javascript:, data:, or scheme-relative //)."""
+    u = str(url or '').strip()
+    return u if re.match(r'^https?://', u, re.IGNORECASE) else ''
+
+
 def _doc_public_dict(row):
     d = dict(row)
     try:
@@ -737,7 +890,7 @@ def _doc_public_dict(row):
         # Canonical page for this document — what the UI links to and shares.
         'url': f'/{cat_slug}/{slug}' if slug else f"/kb/{d['remote_id']}",
         'title': d['title'],
-        'description': d['description'],
+        'description': _sanitize_description(d['description']),
         'original_name': d['original_name'],
         'mime_type': d['mime_type'],
         'file_size': d['file_size'],
@@ -745,7 +898,7 @@ def _doc_public_dict(row):
         'is_image': bool(d['is_image']),
         'doc_type': d['doc_type'],
         'vehicle_fitment': d['vehicle_fitment'],
-        'associated_parts': [{'number': p.get('number', ''), 'url': p.get('url', '')}
+        'associated_parts': [{'number': p.get('number', ''), 'url': _safe_part_url(p.get('url', ''))}
                              for p in parts if p.get('number') or p.get('url')],
         'created_at': d['created_at'],
         'has_file': bool(d['local_file']),
@@ -756,6 +909,7 @@ def _doc_public_dict(row):
 
 
 @app.route('/api/kb/categories')
+@limiter.limit('60 per minute')
 def api_categories():
     conn = get_db()
     rows = conn.execute(
@@ -776,8 +930,14 @@ _DOC_SELECT = ("SELECT d.*, c.slug AS category_slug FROM kb_documents d "
 _DOC_ORDER = " ORDER BY d.sort_order, d.title COLLATE NOCASE, d.id"
 
 
+MAX_QUERY_LENGTH = 120     # search input cap — LIKE scans mustn't be free DoS
+SEARCH_LIMIT = 500
+LISTING_LIMIT = 1000
+
+
 def _query_documents(conn, category=None, q=''):
     """category: None = all, 'null' = uncategorized, or a remote category id."""
+    q = (q or '')[:MAX_QUERY_LENGTH]
     where, params = [], []
     if category == 'null':
         where.append("d.category_remote_id IS NULL")
@@ -791,11 +951,14 @@ def _query_documents(conn, category=None, q=''):
         where.append("(d.title LIKE ? OR d.description LIKE ? OR d.original_name LIKE ? "
                      "OR d.vehicle_fitment LIKE ? OR d.associated_parts LIKE ?)")
         params += [f"%{q}%"] * 5
-    sql = _DOC_SELECT + (" WHERE " + " AND ".join(where) if where else "") + _DOC_ORDER
+    sql = (_DOC_SELECT + (" WHERE " + " AND ".join(where) if where else "")
+           + _DOC_ORDER + " LIMIT ?")
+    params.append(SEARCH_LIMIT if q else LISTING_LIMIT)
     return conn.execute(sql, params).fetchall()
 
 
 @app.route('/api/kb/documents')
+@limiter.limit('60 per minute')
 def api_documents():
     conn = get_db()
     rows = _query_documents(conn, request.args.get('category_id'),
@@ -805,6 +968,7 @@ def api_documents():
 
 
 @app.route('/api/kb/glossary')
+@limiter.limit('60 per minute')
 def api_glossary():
     q = (request.args.get('q') or '').strip()
     conn = get_db()
@@ -823,6 +987,7 @@ def api_glossary():
 
 
 @app.route('/api/kb/documents/<int:rid>')
+@limiter.limit('60 per minute')
 def api_document(rid):
     conn = get_db()
     row = conn.execute(_DOC_SELECT + " WHERE d.remote_id = ?", (rid,)).fetchone()
@@ -830,6 +995,21 @@ def api_document(rid):
     if not row:
         return jsonify({'error': 'Not found'}), 404
     return jsonify(_doc_public_dict(row))
+
+
+# The served Content-Type is derived locally from the file extension — the
+# upstream mime_type is display metadata only. Trusting it would let a synced
+# "pdf" declared as text/html render attacker HTML on this origin.
+_INLINE_MIME = {
+    'pdf': 'application/pdf',
+    'png': 'image/png',
+    'jpg': 'image/jpeg',
+    'jpeg': 'image/jpeg',
+    'gif': 'image/gif',
+    'webp': 'image/webp',
+    'svg': 'image/svg+xml',
+    'txt': 'text/plain',   # Werkzeug appends charset=utf-8 to text/* itself
+}
 
 
 @app.route('/kb/<int:rid>/download')
@@ -845,10 +1025,18 @@ def public_download(rid):
     path = os.path.join(CACHE_DIR, row['local_file'])
     if not os.path.exists(path):
         abort(404)
-    # Inline-preview images/PDF; everything else downloads as an attachment.
-    inline = (row['ext'] or '').lower() in ('pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'txt')
-    return send_file(path, mimetype=row['mime_type'] or 'application/octet-stream',
-                     as_attachment=not inline, download_name=row['original_name'] or f'document-{rid}')
+    # Inline-preview images/PDF/text; everything else downloads as an attachment.
+    ext = (row['ext'] or '').lower()
+    inline = ext in _INLINE_MIME
+    resp = send_file(path, mimetype=_INLINE_MIME.get(ext, 'application/octet-stream'),
+                     as_attachment=not inline,
+                     download_name=row['original_name'] or f'document-{rid}')
+    if ext == 'svg':
+        # A synced SVG can embed script; sandbox it into a unique origin with
+        # no script/network access so it stays a picture, nothing more.
+        resp.headers['Content-Security-Policy'] = \
+            "sandbox; default-src 'none'; style-src 'unsafe-inline'"
+    return resp
 
 
 @app.route('/kb/<int:rid>/featured')
@@ -980,6 +1168,7 @@ def _verify_turnstile(token, remote_ip=None):
 
 
 @app.route('/api/auth/login', methods=['POST'])
+@limiter.limit('10 per minute')
 def api_login():
     if not _has_admin():
         return jsonify({'error': 'No account yet — finish setup first', 'redirect': '/admin/setup'}), 409
@@ -1003,8 +1192,8 @@ def api_login():
     stored = row['password_hash'] if row else generate_password_hash('x' * 16)
     valid = check_password_hash(stored, password) and row and row['active']
     if valid:
-        conn.execute("UPDATE users SET failed_login_count = 0, locked_until = NULL WHERE id = ?",
-                     (row['id'],))
+        conn.execute("UPDATE users SET failed_login_count = 0, locked_until = NULL, "
+                     "lockout_count = 0, lockout_day = '' WHERE id = ?", (row['id'],))
         # A successful admin login proves the account works — finalize setup so a
         # half-finished wizard can never reappear or trap anyone.
         _set_setting(conn, 'setup_complete', True)
@@ -1013,17 +1202,27 @@ def api_login():
         conn.close()
         login_user(user, remember=True)
         session.permanent = True
+        _audit('login_ok', username=username)
         return jsonify({'success': True, 'redirect': '/admin'})
     if row:
         fails = (row['failed_login_count'] or 0) + 1
         locked = None
         if fails >= LOGIN_FAIL_LIMIT:
-            locked = (datetime.now(timezone.utc) + timedelta(minutes=LOCKOUT_MINUTES)).isoformat()
+            # Escalating, daily-reset lockout: annoying for a guesser, but a
+            # stranger can't lock the real admin out for long stretches.
+            today = datetime.now(timezone.utc).date().isoformat()
+            step = (row['lockout_count'] or 0) if (row['lockout_day'] or '') == today else 0
+            minutes = LOCKOUT_STEPS_MINUTES[min(step, len(LOCKOUT_STEPS_MINUTES) - 1)]
+            locked = (datetime.now(timezone.utc) + timedelta(minutes=minutes)).isoformat()
             fails = 0
+            conn.execute("UPDATE users SET lockout_count = ?, lockout_day = ? WHERE id = ?",
+                         (step + 1, today, row['id']))
+            _audit('login_lockout', username=username, minutes=minutes)
         conn.execute("UPDATE users SET failed_login_count = ?, locked_until = ? WHERE id = ?",
                      (fails, locked, row['id']))
         conn.commit()
     conn.close()
+    _audit('login_failed', username=username)
     return jsonify({'error': 'Invalid username or password'}), 401
 
 
@@ -1052,6 +1251,7 @@ def setup_status():
 
 
 @app.route('/api/setup/account', methods=['POST'])
+@limiter.limit('5 per hour')
 def setup_account():
     # Resume-friendly: if an admin already exists, don't dead-end. A signed-in
     # admin simply advances; anyone else is pointed at the login screen.
@@ -1084,6 +1284,7 @@ def setup_account():
     conn.close()
     login_user(User(row), remember=True)
     session.permanent = True
+    _audit('setup_admin_created', username=username)
     return jsonify({'success': True})
 
 
@@ -1116,13 +1317,19 @@ def put_connection():
     data = request.get_json() or {}
     conn = get_db()
     c = get_wm_connection(conn)
-    c['base_url'] = (data.get('base_url') or c.get('base_url', '')).strip().rstrip('/')
+    base = (data.get('base_url') or c.get('base_url', '')).strip().rstrip('/')
+    ok, err = _validate_wm_base_url(base)
+    if not ok:
+        conn.close()
+        return jsonify({'error': err}), 400
+    c['base_url'] = base
     key = data.get('api_key', None)
     if key is not None and key != '********':
         c['api_key'] = key.strip()
     _set_setting(conn, 'wm_connection', c)
     conn.commit()
     conn.close()
+    _audit('setting_changed', key='wm_connection')
     return jsonify({'success': True})
 
 
@@ -1135,6 +1342,9 @@ def test_connection():
     c = get_wm_connection(conn)
     conn.close()
     base = (data.get('base_url') or c.get('base_url', '')).strip().rstrip('/')
+    ok, err = _validate_wm_base_url(base)
+    if not ok:
+        return jsonify({'success': False, 'error': err}), 400
     key = data.get('api_key', '')
     if key in ('', '********'):
         key = c.get('api_key', '')
@@ -1168,6 +1378,7 @@ def put_sync_settings():
     _set_setting(conn, 'sync_config', cfg)
     conn.commit()
     conn.close()
+    _audit('setting_changed', key='sync_config')
     return jsonify({'success': True, **cfg})
 
 
@@ -1175,8 +1386,9 @@ def put_sync_settings():
 @admin_required
 def run_sync_now():
     import sync
+    _audit('sync_triggered')
     result = sync.run_sync()
-    status = 200 if result.get('status') == 'ok' else 400
+    status = 200 if result.get('status') == 'ok' else (409 if result.get('status') == 'busy' else 400)
     return jsonify(result), status
 
 
@@ -1217,6 +1429,7 @@ def put_turnstile():
     _set_setting(conn, 'turnstile_config', cfg)
     conn.commit()
     conn.close()
+    _audit('setting_changed', key='turnstile_config')
     return jsonify({'success': True})
 
 
@@ -1254,6 +1467,7 @@ def put_links_api():
     conn.commit()
     out = get_links(conn)
     conn.close()
+    _audit('setting_changed', key='links')
     return jsonify({'success': True, **out})
 
 
@@ -1276,20 +1490,28 @@ def put_branding():
     _set_setting(conn, 'branding', b)
     conn.commit()
     conn.close()
+    _audit('setting_changed', key='branding')
     return jsonify({'success': True})
 
 
+MAX_SVG_BYTES = 2 * 1024 * 1024
+
+
 def _sanitize_svg(svg_bytes):
-    """Strip XSS vectors from an SVG (ported from Warehouse Manager)."""
+    """Strip XSS vectors from an SVG (ported from Warehouse Manager).
+    Parsed with defusedxml so entity-expansion/DTD tricks die in the parser."""
     import xml.etree.ElementTree as ET
+    from defusedxml.ElementTree import fromstring as _defused_fromstring, ParseError
+    if len(svg_bytes) > MAX_SVG_BYTES:
+        return None
     try:
         text = svg_bytes.decode('utf-8', errors='replace')
     except Exception:
         return None
     ET.register_namespace('', 'http://www.w3.org/2000/svg')
     try:
-        root = ET.fromstring(text)
-    except ET.ParseError:
+        root = _defused_fromstring(text)
+    except (ParseError, ValueError, Exception):
         return None
     if not root.tag.lower().endswith('svg'):
         return None
@@ -1355,7 +1577,9 @@ def upload_branding(asset):
         except Exception:
             return jsonify({'error': 'Invalid image file'}), 400
         new_name = f"{prefix}-{uuid.uuid4().hex}.{'jpg' if ext == 'jpeg' else ext}"
-    else:  # ico
+    else:  # ico — verify the ICONDIR magic, extension alone proves nothing
+        if not buf.startswith(b'\x00\x00\x01\x00'):
+            return jsonify({'error': 'Invalid ICO file'}), 400
         new_name = f"{prefix}-{uuid.uuid4().hex}.ico"
     with open(os.path.join(BRANDING_DIR, new_name), 'wb') as out:
         out.write(buf)
@@ -1371,6 +1595,7 @@ def upload_branding(asset):
     _set_setting(conn, 'branding', b)
     conn.commit()
     conn.close()
+    _audit('branding_uploaded', asset=asset, ext=ext)
     return jsonify({'success': True, 'url': f'/branding/{asset}'})
 
 
@@ -1391,6 +1616,7 @@ def delete_branding(asset):
     _set_setting(conn, 'branding', b)
     conn.commit()
     conn.close()
+    _audit('branding_deleted', asset=asset)
     return jsonify({'success': True})
 
 
@@ -1427,6 +1653,7 @@ def create_user():
                  (username, display, generate_password_hash(password, method='pbkdf2:sha256')))
     conn.commit()
     conn.close()
+    _audit('user_created', username=username)
     return jsonify({'success': True}), 201
 
 
@@ -1443,6 +1670,7 @@ def delete_user(uid):
     conn.execute("DELETE FROM users WHERE id = ?", (uid,))
     conn.commit()
     conn.close()
+    _audit('user_deleted', user_id=uid)
     return jsonify({'success': True})
 
 
@@ -1461,10 +1689,17 @@ def change_password():
     if not ok:
         conn.close()
         return jsonify({'error': err}), 400
-    conn.execute("UPDATE users SET password_hash = ? WHERE id = ?",
+    # Bumping session_epoch invalidates every other session and remember-cookie
+    # for this user; re-issuing this session keeps the current browser signed in.
+    conn.execute("UPDATE users SET password_hash = ?, session_epoch = session_epoch + 1 "
+                 "WHERE id = ?",
                  (generate_password_hash(new, method='pbkdf2:sha256'), current_user.id))
     conn.commit()
+    row = conn.execute("SELECT * FROM users WHERE id = ?", (current_user.id,)).fetchone()
     conn.close()
+    login_user(User(row), remember=True)
+    session.permanent = True
+    _audit('password_changed')
     return jsonify({'success': True})
 
 
@@ -1482,4 +1717,8 @@ def about():
 init_db()
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5070)), debug=True)
+    # Debug (the Werkzeug debugger executes arbitrary code) is opt-in only,
+    # and a debug server never binds beyond localhost.
+    _debug = os.environ.get('FLASK_DEBUG', '').lower() in ('1', 'true', 'yes')
+    app.run(host='127.0.0.1' if _debug else '0.0.0.0',
+            port=int(os.environ.get('PORT', 5070)), debug=_debug)

@@ -12,6 +12,7 @@ which is how the separate `wmkb-sync` compose service stays scheduled.
 import os
 import re
 import time
+import fcntl
 import traceback
 
 import app as wmkb
@@ -43,7 +44,25 @@ def _safe_remove(name):
 
 
 def run_sync():
-    """Perform one full sync. Returns a result dict (also written to sync_log)."""
+    """Perform one full sync. Returns a result dict (also written to sync_log).
+
+    Guarded by a non-blocking file lock shared across processes so a manual
+    admin-triggered sync can't overlap the daemon (or another manual run) —
+    the DB is WAL-safe but concurrent file downloads would race."""
+    lock_file = open(os.path.join(wmkb.DATA_DIR, '.sync_lock'), 'w')
+    try:
+        fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except (BlockingIOError, OSError):
+        lock_file.close()
+        return {'status': 'busy', 'error': 'A sync is already running.'}
+    try:
+        return _run_sync_locked()
+    finally:
+        fcntl.flock(lock_file, fcntl.LOCK_UN)
+        lock_file.close()
+
+
+def _run_sync_locked():
     started = wmkb._now_iso()
     conn = _conn()
     base = ''
@@ -58,6 +77,11 @@ def run_sync():
     if not base or not key:
         return _log_finish(log_id, started, 'error', 0, 0, 0,
                            'Warehouse Manager connection is not configured.')
+    # Values saved before the validation existed (or edited on disk) get the
+    # same SSRF checks as the admin form.
+    ok, err = wmkb._validate_wm_base_url(base)
+    if not ok:
+        return _log_finish(log_id, started, 'error', 0, 0, 0, f'Connection blocked: {err}')
 
     try:
         cats = wm_client.get_categories(base, key).get('categories', [])

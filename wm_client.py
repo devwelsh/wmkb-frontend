@@ -4,6 +4,9 @@ All requests authenticate with an API key in the X-API-Key header (never the
 URL). File downloads stream to a temp file and are atomically renamed into
 place so a crashed/truncated download never leaves a "valid-looking" cache
 file behind. Every call has a timeout and a size cap.
+
+Redirects are never followed: a redirecting "Warehouse Manager" could otherwise
+bounce the request (and its X-API-Key header) to an arbitrary host.
 """
 import os
 import tempfile
@@ -34,9 +37,13 @@ def test_connection(base_url, api_key):
         return False, 'API key is not set'
     try:
         r = requests.get(_url(base_url, '/api/external/kb/categories'),
-                         headers=_headers(api_key), timeout=TIMEOUT)
+                         headers=_headers(api_key), timeout=TIMEOUT,
+                         allow_redirects=False)
     except requests.RequestException as e:
         return False, f'Could not reach Warehouse Manager: {e}'
+    if r.status_code in (301, 302, 303, 307, 308):
+        return False, ('Warehouse Manager redirected the request — set the base '
+                       'URL to the final address (check http vs https).')
     if r.status_code == 401:
         return False, 'API key rejected (401). Check the key.'
     if r.status_code == 403:
@@ -53,7 +60,8 @@ def test_connection(base_url, api_key):
 
 def get_categories(base_url, api_key):
     r = requests.get(_url(base_url, '/api/external/kb/categories'),
-                     headers=_headers(api_key), timeout=TIMEOUT)
+                     headers=_headers(api_key), timeout=TIMEOUT,
+                     allow_redirects=False)
     if r.status_code != 200:
         raise WMClientError(f'categories: HTTP {r.status_code}')
     return r.json()
@@ -61,7 +69,8 @@ def get_categories(base_url, api_key):
 
 def get_documents(base_url, api_key):
     r = requests.get(_url(base_url, '/api/external/kb/documents'),
-                     headers=_headers(api_key), timeout=TIMEOUT)
+                     headers=_headers(api_key), timeout=TIMEOUT,
+                     allow_redirects=False)
     if r.status_code != 200:
         raise WMClientError(f'documents: HTTP {r.status_code}')
     return r.json().get('documents', [])
@@ -72,7 +81,8 @@ def get_glossary(base_url, api_key):
     version predates the glossary endpoint (404) — callers leave the local
     mirror untouched in that case."""
     r = requests.get(_url(base_url, '/api/external/kb/glossary'),
-                     headers=_headers(api_key), timeout=TIMEOUT)
+                     headers=_headers(api_key), timeout=TIMEOUT,
+                     allow_redirects=False)
     if r.status_code == 404:
         return None
     if r.status_code != 200:
@@ -84,7 +94,7 @@ def _download(base_url, api_key, path, dest_path):
     """Stream a file to dest_path atomically. Returns True on success,
     False if the source 404s (file gone), raises on other errors."""
     with requests.get(_url(base_url, path), headers={'X-API-Key': api_key},
-                      stream=True, timeout=TIMEOUT) as r:
+                      stream=True, timeout=TIMEOUT, allow_redirects=False) as r:
         if r.status_code == 404:
             return False
         if r.status_code != 200:

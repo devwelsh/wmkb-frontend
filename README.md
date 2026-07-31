@@ -108,6 +108,8 @@ services:
       - SECRET_KEY=${SECRET_KEY:-}
       - WMKB_DATA_DIR=/data
       - WMKB_SECURE_COOKIES=${WMKB_SECURE_COOKIES:-1}
+      - WMKB_BEHIND_PROXY=${WMKB_BEHIND_PROXY:-1}
+      - WMKB_ALLOW_INTERNAL_WM=${WMKB_ALLOW_INTERNAL_WM:-}
 
   # Scheduled sync runs as its own process (no in-web-worker scheduler election).
   # Shares the same image and data volume; it is the single DB writer for KB
@@ -122,6 +124,7 @@ services:
     environment:
       - SECRET_KEY=${SECRET_KEY:-}
       - WMKB_DATA_DIR=/data
+      - WMKB_ALLOW_INTERNAL_WM=${WMKB_ALLOW_INTERNAL_WM:-}
     depends_on:
       - wmkb-frontend
 
@@ -293,6 +296,9 @@ normally want to set at least `WMKB_PORT` and `WMKB_SECURE_COOKIES`.
 | `SECRET_KEY` | Signs session cookies | auto-generated | Leave blank and one is generated on first boot and persisted to `/data/.secret_key`, which survives restarts and upgrades. Set it explicitly if you want to control it or rotate it — changing it logs every admin out. |
 | `WMKB_SECURE_COOKIES` | Marks cookies `Secure` and sends HSTS | `1` in `docker-compose.prod.yml`, off in `docker-compose.yml` | Turn **on** once you are on https. Leave **off** while testing over plain http, or the admin login will not stick. |
 | `WMKB_DATA_DIR` | Where the DB, file cache, branding uploads and secret key live | `/data` in the container | Set by the compose files; do not change it unless you also change the volume mount. |
+| `WMKB_BEHIND_PROXY` | Trust one hop of `X-Forwarded-*` headers | `1` in the compose files, off otherwise | Leave on when a reverse proxy fronts the app (the documented deployment). Set to `0` if the container port is exposed to visitors directly — trusting forwarding headers without a proxy lets anyone spoof the host in canonical URLs and the sitemap. |
+| `WMKB_ALLOW_INTERNAL_WM` | Allow an `http://` or loopback Warehouse Manager URL | off | By default the WM connection must be `https://` and non-loopback so a stolen admin session can't turn the sync client into an internal-network scanner. Set to `1` for dev or trusted-LAN deployments. |
+| `FLASK_DEBUG` | Enables the Flask dev-server debugger (`python run.py` only) | off | Dev only. With debug on, the server binds to localhost — the Werkzeug debugger executes arbitrary code and must never be reachable from other machines. |
 
 `.env` is read by Docker Compose, not by the app, so it must sit next to the
 compose file you pass to `docker compose -f`. It is in `.gitignore` — never

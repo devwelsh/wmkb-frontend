@@ -28,7 +28,12 @@ sudo docker compose logs -f
 Env vars: `WMKB_DATA_DIR` (where `wmkb.db`, `cache/`, `branding/`, `.secret_key`
 live — `/data` in the container), `SECRET_KEY` (optional; else persisted to
 `.secret_key`), `WMKB_PORT` (host port), `WMKB_SECURE_COOKIES` (set to 1 behind
-HTTPS). No test suite or linter.
+HTTPS), `WMKB_BEHIND_PROXY` (trust X-Forwarded-*; compose sets 1),
+`WMKB_ALLOW_INTERNAL_WM` (allow http/loopback WM URLs — dev/LAN only),
+`FLASK_DEBUG` (dev server debugger, localhost-only bind). No test suite or
+linter. `requirements.txt` is compiled with hashes from `requirements.in`
+(`pip-compile --generate-hashes requirements.in`) — edit the `.in`, not the
+`.txt`.
 
 ## Architecture
 

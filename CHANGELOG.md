@@ -1,5 +1,60 @@
 # Changelog
 
+## v1.3.0
+
+Security release — a full-codebase security review, fixed in one pass. Nothing
+user-visible changes on the public site; admins should read the upgrade notes.
+
+**Content from Warehouse Manager is now treated as untrusted on this origin:**
+- Document descriptions are sanitized server-side (`nh3` allowlist: basic
+  formatting tags, `http(s)`/`mailto` links only) before they reach the API or
+  the page, with a second client-side pass as a safety net. A malicious
+  description can no longer run script on the site (stored XSS).
+- Downloads no longer trust the upstream `mime_type`: the served Content-Type
+  comes from a local extension allowlist, `txt` is always `text/plain`, and
+  inline SVG previews are sandboxed with a CSP that blocks script and network
+  access inside them. Everything outside the allowlist downloads as an
+  attachment. Associated-parts links are now also filtered server-side
+  (http/https only).
+- HTML pages send a baseline Content-Security-Policy (`object-src 'none'`,
+  `base-uri 'self'`, `frame-ancestors 'none'`, `form-action 'self'`).
+
+**Auth and API hardening:**
+- Mutating admin/auth/setup API calls require a same-origin `Origin`/`Referer`
+  header (CSRF guard); cross-origin requests get a 403.
+- Per-IP rate limits: 10/min on login, 5/hour on setup, 60/min on the public
+  KB API. Search queries are capped at 120 chars and results at 500 rows.
+- Account lockout now escalates (1 → 5 → 15 min, reset daily) instead of a
+  flat 15 minutes, so a stranger hammering the login can't lock the real admin
+  out indefinitely — the IP rate limit is the primary brake.
+- Changing a password invalidates every other active session and remember-me
+  cookie for that user (the session you changed it from stays signed in).
+  **Upgrade note: all admins are signed out once after this upgrade.**
+- Failed logins, lockouts, setting changes, uploads and user changes are
+  written to the app log as structured `AUDIT` lines.
+
+**Deployment hardening:**
+- The Warehouse Manager base URL must now be `https://` and non-loopback.
+  **Upgrade note:** if your WM runs on plain http or localhost (LAN/internal
+  setups), set `WMKB_ALLOW_INTERNAL_WM=1` or the sync will refuse to run. The
+  WM client also no longer follows redirects, so the API key can't be bounced
+  to another host.
+- `X-Forwarded-*` trust is now opt-in via `WMKB_BEHIND_PROXY` (the compose
+  files set it to `1`, matching the documented reverse-proxy deployment).
+  Without it, anyone could spoof the host/proto in canonical URLs and the
+  sitemap when the port was exposed directly.
+- The container runs as an unprivileged `wmkb` user (existing data volumes are
+  fixed up automatically on first start).
+- Dependencies are pinned with hashes (`requirements.txt` compiled from
+  `requirements.in`) and audited weekly in CI (`pip-audit`).
+- The dev server only enables the Werkzeug debugger with `FLASK_DEBUG=1`, and
+  then binds to localhost only.
+- Smaller fixes: scheme-relative `//host` URLs rejected in nav/footer links,
+  manual sync can no longer overlap the sync daemon (file lock, 409 when
+  busy), SVG branding uploads parsed with `defusedxml` plus a 2 MB cap, ICO
+  uploads verified by magic bytes, `/admin` and `/api/admin` responses sent
+  with `noindex`/`no-store`, and the SQLite file is created `0600`.
+
 ## v1.2.3
 - The backdrop behind the search window (⌘K / Ctrl K) no longer blurs the page — it's the same plain darkened overlay the document window uses.
 
