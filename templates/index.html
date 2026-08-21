@@ -396,8 +396,55 @@ function cardHtml(d, i){
         </div></article>`;
 }
 
+/* ── Table sorting ──
+   Header clicks cycle asc → desc → the server's own order, so the default
+   ordering is always one more click away rather than lost for the session. */
+let sortKey = null, sortDir = 'asc';
+const SORT_COLS = [
+    {key:'title',    label:'Document'},
+    {key:'category', label:'Category'},
+    {key:'fitment',  label:'Vehicle fitment'},
+    {key:'parts',    label:'Parts'},
+    {key:'type',     label:'Type'},
+];
+function sortValue(d, key){
+    if (key === 'title') return (d.title || '').trim();
+    if (key === 'category'){ const c = CATS.find(x=>x.id===d.category_id); return c ? c.name : 'Uncategorized'; }
+    if (key === 'fitment') return fitList(d).join(', ');
+    if (key === 'parts') return (d.associated_parts||[]).map(p=>p.number||p.url||'').filter(Boolean).join(', ');
+    if (key === 'type') return (d.ext || '').toUpperCase();
+    return '';
+}
+const collate = (a,b)=> String(a).localeCompare(String(b), undefined, {numeric:true, sensitivity:'base'});
+function sortedDocs(){
+    if (!sortKey) return DOCS;
+    const dir = sortDir === 'desc' ? -1 : 1;
+    /* Blank cells sink to the bottom in both directions — an empty column is
+       never the interesting end of a sort. Ties fall back to the title. */
+    return DOCS.slice().sort((a,b)=>{
+        const va = sortValue(a, sortKey), vb = sortValue(b, sortKey);
+        if (!va !== !vb) return va ? -1 : 1;
+        const c = collate(va, vb);
+        return c ? c * dir : collate(a.title||'', b.title||'');
+    });
+}
+function sortBy(key){
+    if (sortKey !== key){ sortKey = key; sortDir = 'asc'; }
+    else if (sortDir === 'asc'){ sortDir = 'desc'; }
+    else { sortKey = null; sortDir = 'asc'; }
+    renderDocs();
+}
+function sortTh(key, label){
+    const active = sortKey === key;
+    const desc = active && sortDir === 'desc';
+    const arrow = desc ? 'm6 9 6 6 6-6' : 'm6 15 6-6 6 6';
+    return `<th class="sortable" aria-sort="${active ? (desc?'descending':'ascending') : 'none'}">
+        <button type="button" class="th-sort${active?' active':''}" onclick="sortBy('${key}')"
+            title="Sort by ${esc(label)}">${esc(label)}<svg class="sort-ind" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" aria-hidden="true"><path d="${arrow}"/></svg></button></th>`;
+}
+
 function tableHtml(){
-    const rows = DOCS.map(d=>{
+    const rows = sortedDocs().map(d=>{
         const cat = CATS.find(c=>c.id===d.category_id);
         const thumb = d.has_featured ? `<img src="${esc(d.featured_url)}" alt="">` : SMALL_FILE;
         const fit = fitList(d).slice(0,4).map(f=>`<span class="mini-chip">${esc(f)}</span>`).join('') || '<span class="cell-muted">—</span>';
@@ -417,7 +464,7 @@ function tableHtml(){
         </tr>`;
     }).join('');
     return `<div class="index-wrap"><table class="index-table">
-        <thead><tr><th>Document</th><th>Category</th><th>Vehicle fitment</th><th>Parts</th><th>Type</th><th></th></tr></thead>
+        <thead><tr>${SORT_COLS.map(c=>sortTh(c.key,c.label)).join('')}<th></th></tr></thead>
         <tbody>${rows}</tbody></table></div>`;
 }
 

@@ -282,6 +282,16 @@ a.chip.part:hover { background: var(--accent); color: var(--on-accent); transfor
 .index-table th:nth-child(5), .index-table td:nth-child(5) { width: 9%; }
 .index-table th:nth-child(6), .index-table td:nth-child(6) { width: 12%; }
 .index-table th { text-align: left; padding: 1rem 1.4rem; font-size: 0.64rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em; color: var(--ink-mute); border-bottom: 1px solid var(--hairline); white-space: nowrap; }
+/* Sortable headers: the button carries the cell's padding so the whole header
+   is the hit target, and the chevron only goes solid on the active column. */
+.index-table th.sortable { padding: 0; }
+.index-table th.sortable .th-sort { display: flex; align-items: center; gap: 0.4rem; width: 100%; padding: 1rem 1.4rem; background: none; border: 0; font: inherit; color: inherit; text-transform: inherit; letter-spacing: inherit; text-align: left; cursor: pointer; transition: color var(--speed-fast) var(--ease); }
+.index-table th.sortable .th-sort:hover { color: var(--ink); }
+.index-table th.sortable .th-sort:focus-visible { outline: 2px solid var(--accent); outline-offset: -3px; }
+.index-table th.sortable .th-sort.active { color: var(--accent); }
+.sort-ind { width: 12px; height: 12px; flex-shrink: 0; opacity: 0; transition: opacity var(--speed-fast) var(--ease); }
+.th-sort:hover .sort-ind { opacity: 0.5; }
+.th-sort.active .sort-ind { opacity: 1; }
 .index-table td { padding: 1.15rem 1.4rem; border-bottom: 1px solid var(--hairline); vertical-align: middle; color: var(--ink-soft); }
 .index-table tbody tr { cursor: pointer; transition: background var(--speed-fast) var(--ease); }
 .index-table tbody tr:hover td { background: var(--surface-2); }

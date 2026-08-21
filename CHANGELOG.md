@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.3.1
+- The list view's columns are sortable: click **Document**, **Category**, **Vehicle fitment**, **Parts** or **Type** to sort, click again to reverse, and a third click restores the default order. The active column is highlighted with a direction arrow, headers are keyboard-focusable buttons carrying `aria-sort`, and rows with an empty cell always sink to the bottom. The sort applies to whatever the list is showing (a category or search results) and resets on reload.
+
 ## v1.3.0
 
 Security release — a full-codebase security review, fixed in one pass. Nothing
