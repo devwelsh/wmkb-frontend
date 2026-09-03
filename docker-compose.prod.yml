@@ -1,7 +1,7 @@
 # Production deployment — pulls the published image instead of building from
 # source, so the server never needs the repo:
 #
-#   curl -O https://raw.githubusercontent.com/viibeware/wmkb-frontend/main/docker-compose.prod.yml
+#   curl -O https://raw.githubusercontent.com/devwelsh/wmkb-frontend/main/docker-compose.prod.yml
 #   docker compose -f docker-compose.prod.yml up -d
 #
 # Put a reverse proxy (Caddy/nginx/Traefik) in front for TLS and set
@@ -9,7 +9,7 @@
 # To upgrade: docker compose -f docker-compose.prod.yml pull && ... up -d
 services:
   wmkb-frontend:
-    image: viibeware/wmkb-frontend:latest
+    image: devwelsh/wmkb-frontend:latest
     container_name: wmkb-frontend
     restart: unless-stopped
     ports:
@@ -31,7 +31,7 @@ services:
   # Shares the same image and data volume; it is the single DB writer for KB
   # content while the web workers are readers.
   wmkb-sync:
-    image: viibeware/wmkb-frontend:latest
+    image: devwelsh/wmkb-frontend:latest
     container_name: wmkb-sync
     restart: unless-stopped
     command: ["python", "sync.py"]

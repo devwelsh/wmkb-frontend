@@ -20,7 +20,7 @@ python3 run.py
 # Dev: scheduled sync (separate process), in another terminal
 python3 sync.py
 
-# Production via compose (web + sync services, image: viibeware/wmkb-frontend)
+# Production via compose (web + sync services, image: devwelsh/wmkb-frontend)
 sudo docker compose up -d --build
 sudo docker compose logs -f
 ```

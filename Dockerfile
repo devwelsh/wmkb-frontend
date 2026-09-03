@@ -1,6 +1,6 @@
 FROM python:3.12-slim
 
-LABEL maintainer="viibeware"
+LABEL maintainer="devwelsh"
 LABEL description="WMKB Frontend — public-facing Knowledge Base for Warehouse Manager"
 
 WORKDIR /app

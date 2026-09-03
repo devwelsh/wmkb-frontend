@@ -1,7 +1,7 @@
 # WMKB Frontend
 
 A modern, public-facing **Knowledge Base** website and companion to
-[Warehouse Manager](https://github.com/viibeware/warehouse-manager). It surfaces
+[Warehouse Manager](https://github.com/devwelsh/warehouse-manager). It surfaces
 your product instruction sheets, guides, diagrams, images and documents to the
 public with an elegant sidebar layout, centralized live search, and light/dark
 themes — while a separate admin area at `/admin` controls the secure connection
@@ -73,7 +73,7 @@ read-only.
 ## Option A — install from the published image (recommended)
 
 The image is on Docker Hub as
-[`viibeware/wmkb-frontend`](https://hub.docker.com/r/viibeware/wmkb-frontend),
+[`devwelsh/wmkb-frontend`](https://hub.docker.com/r/devwelsh/wmkb-frontend),
 so the server never needs the source or a build step.
 
 ### 1. Create a directory for the deployment
@@ -88,7 +88,7 @@ mkdir -p /opt/wmkb && cd /opt/wmkb
 ### 2. Download the production compose file
 
 ```bash
-curl -O https://raw.githubusercontent.com/viibeware/wmkb-frontend/main/docker-compose.prod.yml
+curl -O https://raw.githubusercontent.com/devwelsh/wmkb-frontend/main/docker-compose.prod.yml
 ```
 
 Or create it by hand — this is the whole file:
@@ -97,7 +97,7 @@ Or create it by hand — this is the whole file:
 # docker-compose.prod.yml
 services:
   wmkb-frontend:
-    image: viibeware/wmkb-frontend:latest
+    image: devwelsh/wmkb-frontend:latest
     container_name: wmkb-frontend
     restart: unless-stopped
     ports:
@@ -115,7 +115,7 @@ services:
   # Shares the same image and data volume; it is the single DB writer for KB
   # content while the web workers are readers.
   wmkb-sync:
-    image: viibeware/wmkb-frontend:latest
+    image: devwelsh/wmkb-frontend:latest
     container_name: wmkb-sync
     restart: unless-stopped
     command: ["python", "sync.py"]
@@ -144,7 +144,7 @@ value comes from your `.env` (next step), and the part after `:-` is the
 fallback when it isn't set. The container always listens on **5000** internally
 — `WMKB_PORT` only changes the host side of the mapping. Pin a specific release
 instead of `latest` by replacing both `image:` lines with e.g.
-`viibeware/wmkb-frontend:1.1.0`.
+`devwelsh/wmkb-frontend:1.1.0`.
 
 ### 3. Create your `.env`
 
@@ -266,7 +266,7 @@ pulled, and `WMKB_SECURE_COOKIES` defaults to **off** instead of `1` (dev is
 usually plain http). `.env` and the setup wizard work exactly as above.
 
 ```bash
-git clone https://github.com/viibeware/wmkb-frontend.git
+git clone https://github.com/devwelsh/wmkb-frontend.git
 cd wmkb-frontend
 cp .env.example .env          # then edit it
 docker compose up -d --build
