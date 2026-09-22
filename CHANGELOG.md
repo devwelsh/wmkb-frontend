@@ -1,5 +1,29 @@
 # Changelog
 
+## v1.4.0
+- **Part-number search that ignores punctuation.** Searches no longer match the
+  text as typed: both the query and every document are folded to bare
+  alphanumerics first, so `AB-123/4`, `AB123/4`, `ab 1234` and `AB 123 4` all
+  find each other — whichever way the number is written in the document and
+  whichever way it is typed into the search box. Dashes, slashes, dots and
+  spaces inside a part number are all irrelevant.
+- **Every term has to land, in any order.** A multi-word query now matches
+  documents that contain all of its terms wherever they appear (`caliper
+  rebuild` and `rebuild caliper` return the same thing) instead of only exact
+  substrings of the query.
+- **Results come back in relevance order.** A document whose associated part
+  number *is* the query sorts above one that merely mentions it, and title
+  matches outrank matches buried in a description. The list view's column sorts
+  still apply on top.
+- **Fuzzy fallback.** When a search matches nothing outright, near misses are
+  offered instead — a typo, a transposed pair of digits or a misspelling
+  (`ab1243` still finds `AB-123/4`, `calliper` finds "Caliper"). Exact matches
+  always win; the fuzzy pass only runs when there are none.
+- The glossary filter (both the `/api/kb/glossary?q=` endpoint and the in-page
+  filter box) folds terms the same way.
+- Schema v5 adds two folded search columns to `kb_documents`; they are
+  backfilled on upgrade and rebuilt by every sync. No action needed.
+
 ## v1.3.1
 - The list view's columns are sortable: click **Document**, **Category**, **Vehicle fitment**, **Parts** or **Type** to sort, click again to reverse, and a third click restores the default order. The active column is highlighted with a direction arrow, headers are keyboard-focusable buttons carrying `aria-sort`, and rows with an empty cell always sink to the bottom. The sort applies to whatever the list is showing (a category or search results) and resets on reload.
 

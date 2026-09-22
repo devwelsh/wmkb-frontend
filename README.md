@@ -31,6 +31,12 @@ read-only.
   debounced live search, document cards with featured-image thumbnails, and a
   detail view with inline PDF/image preview, vehicle fitment, associated part
   numbers, and download.
+- **Part-number tolerant search** — query and content are both folded to bare
+  alphanumerics, so `AB-123/4`, `AB123/4` and `ab 1234` all find each other.
+  Terms may be typed in any order, results come back in relevance order (an
+  exact part-number match first), and a query that matches nothing falls back
+  to near misses, so a typo or a transposed pair of digits still finds the
+  document.
 - **Readable, shareable URLs** — every category and document has its own
   address (`/kb/<category>/<document>`) with per-page title, description,
   canonical link, Open Graph/Twitter cards and schema.org data, plus

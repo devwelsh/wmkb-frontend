@@ -60,7 +60,8 @@ DB write transaction.
 
 **Data model (local mirror).** `kb_categories` and `kb_documents` carry a
 `remote_id` (the Warehouse Manager id) plus `local_file` / `local_featured`
-(cache filenames). `app_settings` is JSON key/value (`wm_connection`,
+(cache filenames) and the folded search columns `search_norm` / `search_flat`.
+`app_settings` is JSON key/value (`wm_connection`,
 `sync_config`, `turnstile_config`, `branding`, `setup_complete`). `users` are
 admins (Flask-Login, pbkdf2, lockout). `sync_log` records each run.
 
@@ -93,6 +94,20 @@ re-syncs. All-digit slugs are prefixed because the `slug` URL converter refuses
 them — that is what stops `/kb/<category>/<document>` from shadowing
 `/kb/<id>/download`. `RESERVED_CAT_SLUGS` keeps `uncategorized` (the virtual
 category for documents with none) free.
+
+**Search (v1.4.0).** Part numbers are written every which way, so nothing is
+matched as typed. `rebuild_search_index()` stores two folded shapes per
+document — `search_norm` (each word stripped of punctuation, word boundaries
+kept) and `search_flat` (the whole text with every separator gone) — from
+`_migrate_v5` and after every sync upsert, next to `assign_slugs()`. A query is
+folded into terms the same way (`_search_tokens`), every term must appear
+(AND) in one of the folded columns, and hits are sorted by `_relevance` (an
+associated part number equal to the query outranks a mention in a
+description). If the strict pass returns nothing, `_fuzzy_score` scans up to
+`FUZZY_SCAN_LIMIT` rows for near misses over the identifier fields
+(difflib, `FUZZY_THRESHOLD`) so a typo or a transposed pair still finds the
+document. The glossary endpoint and the in-page glossary filter fold the same
+way (`foldWords`/`flatText` in `index.html`).
 
 **Admin (`/admin`).** `login.html` (optional Turnstile), `setup.html` (first-run
 wizard: create admin → connect to Warehouse Manager → finish), `admin.html`

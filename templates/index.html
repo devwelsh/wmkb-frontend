@@ -552,9 +552,22 @@ function openGlossary(){
     setTimeout(()=>s.focus(), 30);
 }
 function closeGlossary(){ document.getElementById('glossaryModal').classList.remove('active'); }
+/* Folded the same way the server folds documents: punctuation in the filter
+   or the term is ignored, so "ABS-1" and "abs 1" find each other. */
+function foldText(s){ return (s||'').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase(); }
+function foldWords(s){ return foldText(s).split(/\s+/).map(w=>w.replace(/[^a-z0-9]+/g,'')).filter(Boolean).join(' '); }
+function flatText(s){ return foldText(s).replace(/[^a-z0-9]+/g,''); }
+function queryTokens(q){
+    const seen = new Set(), out = [];
+    foldText(q).split(/[\s,;]+/).forEach(w=>{ const t=w.replace(/[^a-z0-9]+/g,''); if(t && !seen.has(t)){ seen.add(t); out.push(t); } });
+    return out.slice(0,8);
+}
 function renderGlossary(q){
-    q = (q||'').trim().toLowerCase();
-    const terms = GLOSSARY.filter(t => !q || t.term.toLowerCase().includes(q) || (t.definition||'').toLowerCase().includes(q));
+    const tokens = queryTokens(q||''), flatQ = flatText(q||'');
+    const terms = !tokens.length ? GLOSSARY : GLOSSARY.filter(t => {
+        const hay = foldWords(t.term + ' ' + (t.definition||'')), flat = flatText(t.term);
+        return tokens.every(tok => hay.includes(tok) || flat.includes(tok)) || (flatQ && flat.includes(flatQ));
+    });
     const el = document.getElementById('glossaryList');
     if (!terms.length){ el.innerHTML = '<div class="glossary-empty">No matching terms.</div>'; return; }
     let html = '', letter = '';

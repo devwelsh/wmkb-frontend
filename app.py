@@ -14,6 +14,7 @@ import json
 import uuid
 import logging
 import secrets
+import difflib
 import hashlib
 import unicodedata
 from io import BytesIO
@@ -33,7 +34,7 @@ from flask_login import (LoginManager, UserMixin, login_user, logout_user,
 from werkzeug.routing import BaseConverter
 from werkzeug.security import generate_password_hash, check_password_hash
 
-APP_VERSION = '1.3.1'
+APP_VERSION = '1.4.0'
 
 # ── Paths & config ────────────────────────────────────────────────────────
 DATA_DIR = os.environ.get('WMKB_DATA_DIR', os.path.dirname(os.path.abspath(__file__)))
@@ -273,6 +274,209 @@ def assign_slugs(conn):
                      (_unique_slug(base, taken), remote_id))
 
 
+# ── Search (part-number tolerant) ─────────────────────────────────────────
+# Part numbers get written every which way — "AB-123/4", "AB123-4", "ab 1234"
+# — so neither the stored text nor the query is ever matched as typed. Both
+# are folded to bare alphanumerics first, and every document carries two
+# folded shapes of its text: `search_norm` keeps word boundaries (each word
+# stripped of its punctuation), which is what the query's terms are matched
+# against, while `search_flat` drops the separators between words too, which
+# is what lets a query typed "AB 123" find a part stored as "AB-123". Near
+# misses (a typo, a transposed pair) are caught by a second pass, and only
+# when the strict one finds nothing.
+
+_NON_ALNUM = re.compile(r'[^a-z0-9]+')
+_TOKEN_SPLIT = re.compile(r'[\s,;]+')
+_TAGS = re.compile(r'<[^>]+>')
+
+MAX_QUERY_TOKENS = 8       # the rest of a pasted paragraph is ignored
+FUZZY_MIN_LEN = 4          # shorter terms are too noisy to fuzz
+FUZZY_THRESHOLD = 0.8      # ~one typo in an eight-character part number
+FUZZY_FLOOR = 0.5          # below this a term can't lift the mean — don't measure it
+FUZZY_SCAN_LIMIT = 3000    # rows the fallback pass will look at
+
+
+def _fold(text):
+    """Lowercase ASCII, accents dropped."""
+    return (unicodedata.normalize('NFKD', str(text or ''))
+            .encode('ascii', 'ignore').decode('ascii').lower())
+
+
+def _flatten(text):
+    """'AB-123/4' → 'ab1234' — every separator gone."""
+    return _NON_ALNUM.sub('', _fold(text))
+
+
+def _fold_words(text):
+    """'AB-123/4 Brake Pad' → 'ab1234 brake pad' — word boundaries kept."""
+    return ' '.join(w for w in (_NON_ALNUM.sub('', p) for p in _fold(text).split()) if w)
+
+
+def _part_numbers(raw):
+    """The number/url strings inside a stored associated_parts JSON blob."""
+    try:
+        parts = json.loads(raw or '[]')
+    except (TypeError, ValueError):
+        return []
+    out = []
+    for p in parts if isinstance(parts, list) else []:
+        if isinstance(p, dict):
+            out += [str(p.get('number') or ''), str(p.get('url') or '')]
+        elif p:
+            out.append(str(p))
+    return [s for s in out if s]
+
+
+def _doc_text(d):
+    """Everything about a document worth searching, as one plain string.
+
+    Descriptions arrive from Warehouse Manager as markup, so the tags go first
+    — otherwise a number broken up by an inline tag would fold into gibberish.
+    """
+    return ' '.join([d.get('title') or '', d.get('original_name') or '',
+                     d.get('vehicle_fitment') or '']
+                    + _part_numbers(d.get('associated_parts'))
+                    + [_TAGS.sub(' ', d.get('description') or '')])
+
+
+def _doc_search_text(d):
+    """(search_norm, search_flat) for one document row."""
+    text = _doc_text(d)
+    return _fold_words(text), _flatten(text)
+
+
+def rebuild_search_index(conn):
+    """(Re)compute the folded search columns for every document.
+
+    Metadata only, so it is cheap and idempotent — the sync just runs it
+    wholesale after each upsert rather than tracking which rows changed.
+    """
+    rows = conn.execute(
+        "SELECT remote_id, title, description, original_name, vehicle_fitment, "
+        "associated_parts FROM kb_documents").fetchall()
+    conn.executemany(
+        "UPDATE kb_documents SET search_norm = ?, search_flat = ? WHERE remote_id = ?",
+        [_doc_search_text(dict(r)) + (r['remote_id'],) for r in rows])
+
+
+def _search_tokens(q):
+    """The query as deduped folded terms: 'AB-123/4 pad' → ['ab1234', 'pad']."""
+    seen, toks = set(), []
+    for word in _TOKEN_SPLIT.split(_fold(q)):
+        t = _NON_ALNUM.sub('', word)
+        if t and t not in seen:
+            seen.add(t)
+            toks.append(t)
+            if len(toks) == MAX_QUERY_TOKENS:
+                break
+    return toks
+
+
+def _search_clause(tokens, flat_q, raw_q):
+    """SQL for 'every term appears somewhere', plus two whole-query escapes."""
+    clauses, params = [], []
+    for t in tokens:
+        clauses.append("(d.search_norm LIKE ? OR d.search_flat LIKE ?)")
+        params += [f'%{t}%'] * 2
+    sql = "(" + " AND ".join(clauses) + ")"
+    if flat_q:
+        # The whole query as one run of characters, against a document that
+        # spells the same number out with separators.
+        sql += " OR d.search_flat LIKE ?"
+        params.append(f'%{flat_q}%')
+    # The literal string as typed — belt and braces if the folded columns are
+    # ever stale (a DB restored from before this index existed).
+    sql += (" OR d.title LIKE ? OR d.description LIKE ? OR d.original_name LIKE ?"
+            " OR d.vehicle_fitment LIKE ? OR d.associated_parts LIKE ?")
+    params += [f'%{raw_q}%'] * 5
+    return "(" + sql + ")", params
+
+
+def _relevance(d, tokens, flat_q):
+    """Rank matches: a part number that *is* the query beats a passing mention."""
+    norm = d.get('search_norm') or ''
+    flat = d.get('search_flat') or ''
+    title = _fold_words(d.get('title'))
+    score = 0.0
+    if flat_q:
+        if any(flat_q == _flatten(p) for p in _part_numbers(d.get('associated_parts'))):
+            score += 80
+        if flat_q in flat:
+            score += 60 if flat.startswith(flat_q) else 40
+        if flat_q in title.replace(' ', ''):
+            score += 25
+    for t in tokens:
+        if t in title:
+            score += 12
+        elif t in flat:
+            score += 8
+        elif t in norm:
+            score += 4
+    return score
+
+
+def _fuzzy_terms(d):
+    """This document's identifier-ish terms, folded, for near-miss matching.
+
+    The title, filename, fitment and part numbers in full, plus any word of the
+    description carrying a digit — that last one is where a part number quoted
+    in prose lives, and skipping the prose keeps the comparison cheap.
+    """
+    terms = {_flatten(d.get('title'))}
+    for txt in (d.get('title'), d.get('original_name'), d.get('vehicle_fitment')):
+        terms.update(_NON_ALNUM.sub('', w) for w in _fold(txt).split())
+    terms.update(_flatten(p) for p in _part_numbers(d.get('associated_parts')))
+    for w in _fold(_TAGS.sub(' ', d.get('description') or '')).split():
+        if any(c.isdigit() for c in w):
+            terms.add(_NON_ALNUM.sub('', w))
+    return [t for t in terms if len(t) >= FUZZY_MIN_LEN]
+
+
+def _fuzzy_score(d, matchers):
+    """Mean best similarity of each query term to this document's identifiers.
+
+    `matchers` is one primed SequenceMatcher per term (see `_fuzzy_matchers`);
+    the cheap length and multiset ratios reject nearly every candidate before
+    the real comparison runs, which is what keeps this pass affordable over a
+    few thousand documents.
+    """
+    terms = _fuzzy_terms(d)
+    if not terms:
+        return 0.0
+    total = 0.0
+    for t, m in matchers:
+        best = 0.0
+        for term in terms:
+            if abs(len(term) - len(t)) > 3:     # too far apart in length to be a typo
+                continue
+            m.set_seq1(term)
+            if m.real_quick_ratio() < FUZZY_FLOOR or m.quick_ratio() < FUZZY_FLOOR:
+                continue
+            best = max(best, m.ratio())
+            if best == 1.0:
+                break
+        total += best
+    return total / len(matchers)
+
+
+def _fuzzy_matchers(tokens):
+    """A primed matcher per query term long enough to be worth fuzzing."""
+    out = []
+    for t in tokens:
+        if len(t) >= FUZZY_MIN_LEN:
+            m = difflib.SequenceMatcher(None, autojunk=False)
+            m.set_seq2(t)                        # fixed side, indexed once
+            out.append((t, m))
+    return out
+
+
+def _rank(rows, tokens, flat_q):
+    """Relevance order, falling back on the listing order for equal scores."""
+    scored = [(-_relevance(dict(r), tokens, flat_q), i, r) for i, r in enumerate(rows)]
+    scored.sort(key=lambda t: (t[0], t[1]))
+    return [r for _, _, r in scored]
+
+
 # ── Database ──────────────────────────────────────────────────────────────
 def get_db():
     conn = sqlite3.connect(DATABASE, timeout=15)
@@ -381,7 +585,18 @@ def _migrate_v4(conn):
         conn.execute("ALTER TABLE users ADD COLUMN lockout_day TEXT DEFAULT ''")
 
 
-MIGRATIONS = [(1, _migrate_v1), (2, _migrate_v2), (3, _migrate_v3), (4, _migrate_v4)]
+def _migrate_v5(conn):
+    """Folded search columns so part numbers match however they're punctuated."""
+    cols = {r['name'] for r in conn.execute("PRAGMA table_info(kb_documents)")}
+    if 'search_norm' not in cols:
+        conn.execute("ALTER TABLE kb_documents ADD COLUMN search_norm TEXT DEFAULT ''")
+    if 'search_flat' not in cols:
+        conn.execute("ALTER TABLE kb_documents ADD COLUMN search_flat TEXT DEFAULT ''")
+    rebuild_search_index(conn)
+
+
+MIGRATIONS = [(1, _migrate_v1), (2, _migrate_v2), (3, _migrate_v3), (4, _migrate_v4),
+              (5, _migrate_v5)]
 
 
 def init_db():
@@ -936,8 +1151,15 @@ LISTING_LIMIT = 1000
 
 
 def _query_documents(conn, category=None, q=''):
-    """category: None = all, 'null' = uncategorized, or a remote category id."""
-    q = (q or '')[:MAX_QUERY_LENGTH]
+    """category: None = all, 'null' = uncategorized, or a remote category id.
+
+    A search matches on the folded columns, so punctuation in either the query
+    or the stored text is irrelevant: "AB-123/4", "ab 1234" and "AB123/4" all
+    find each other. Every term has to land somewhere (AND), results come back
+    in relevance order, and if nothing matches outright a fuzzy pass catches
+    near misses instead of returning an empty list.
+    """
+    q = (q or '')[:MAX_QUERY_LENGTH].strip()
     where, params = [], []
     if category == 'null':
         where.append("d.category_remote_id IS NULL")
@@ -947,14 +1169,34 @@ def _query_documents(conn, category=None, q=''):
             params.append(int(category))
         except (TypeError, ValueError):
             pass
-    if q:
-        where.append("(d.title LIKE ? OR d.description LIKE ? OR d.original_name LIKE ? "
-                     "OR d.vehicle_fitment LIKE ? OR d.associated_parts LIKE ?)")
-        params += [f"%{q}%"] * 5
-    sql = (_DOC_SELECT + (" WHERE " + " AND ".join(where) if where else "")
-           + _DOC_ORDER + " LIMIT ?")
-    params.append(SEARCH_LIMIT if q else LISTING_LIMIT)
-    return conn.execute(sql, params).fetchall()
+    scope = (" WHERE " + " AND ".join(where)) if where else ""
+
+    tokens = _search_tokens(q)
+    if not tokens:      # no query, or nothing but punctuation — plain listing
+        return conn.execute(_DOC_SELECT + scope + _DOC_ORDER + " LIMIT ?",
+                            params + [LISTING_LIMIT]).fetchall()
+
+    flat_q = _flatten(q)
+    clause, cparams = _search_clause(tokens, flat_q, q)
+    rows = conn.execute(
+        _DOC_SELECT + " WHERE " + " AND ".join(where + [clause]) + _DOC_ORDER + " LIMIT ?",
+        params + cparams + [SEARCH_LIMIT]).fetchall()
+    if rows:
+        return _rank(rows, tokens, flat_q)
+
+    # Nothing matched as typed — allow near misses (a typo, a transposed pair)
+    # against the identifier fields, best first.
+    matchers = _fuzzy_matchers(tokens)
+    if not matchers:            # every term too short to fuzz safely
+        return []
+    near = []
+    for r in conn.execute(_DOC_SELECT + scope + _DOC_ORDER + " LIMIT ?",
+                          params + [FUZZY_SCAN_LIMIT]).fetchall():
+        score = _fuzzy_score(dict(r), matchers)
+        if score >= FUZZY_THRESHOLD:
+            near.append((-score, len(near), r))
+    near.sort()
+    return [r for _, _, r in near[:SEARCH_LIMIT]]
 
 
 @app.route('/api/kb/documents')
@@ -970,20 +1212,24 @@ def api_documents():
 @app.route('/api/kb/glossary')
 @limiter.limit('60 per minute')
 def api_glossary():
-    q = (request.args.get('q') or '').strip()
+    q = (request.args.get('q') or '').strip()[:MAX_QUERY_LENGTH]
     conn = get_db()
-    if q:
-        like = f"%{q}%"
-        rows = conn.execute(
-            "SELECT term, definition, letter FROM kb_glossary "
-            "WHERE term LIKE ? OR definition LIKE ? ORDER BY term COLLATE NOCASE",
-            (like, like)).fetchall()
-    else:
-        rows = conn.execute(
-            "SELECT term, definition, letter FROM kb_glossary ORDER BY term COLLATE NOCASE"
-        ).fetchall()
+    rows = conn.execute(
+        "SELECT term, definition, letter FROM kb_glossary ORDER BY term COLLATE NOCASE"
+    ).fetchall()
     conn.close()
-    return jsonify({'terms': [dict(r) for r in rows]})
+    terms = [dict(r) for r in rows]
+    # Folded the same way documents are, so "ABS-1" finds "abs 1" and vice versa.
+    tokens = _search_tokens(q)
+    if tokens:
+        flat_q = _flatten(q)
+        def _hit(t):
+            hay = _fold_words(f"{t['term']} {t['definition'] or ''}")
+            flat = _flatten(t['term'])
+            return (all(tok in hay or tok in flat for tok in tokens)
+                    or (flat_q and flat_q in flat))
+        terms = [t for t in terms if _hit(t)]
+    return jsonify({'terms': terms})
 
 
 @app.route('/api/kb/documents/<int:rid>')

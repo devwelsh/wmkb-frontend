@@ -150,6 +150,8 @@ def _run_sync_locked():
         # New rows arrive without a slug and renames/collisions need resolving,
         # so the public URLs are (re)derived once both tables are settled.
         wmkb.assign_slugs(conn)
+        # Same for the folded search columns — cheap enough to redo wholesale.
+        wmkb.rebuild_search_index(conn)
         conn.commit()
     except Exception as e:
         conn.close()
