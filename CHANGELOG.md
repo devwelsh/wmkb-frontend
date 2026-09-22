@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.4.2
+- **Flat page background.** The drifting aurora gradient behind the site is
+  gone; the page sits on a plain background with only the faint grain.
+- **Softer corners, fewer shadows.** Document cards and the list table use a
+  12px radius; the sidebar, the logo tile and icon-button hovers no longer
+  cast shadows.
+- The page heading sits 12px closer to the top of the content pane.
+
 ## v1.4.1
 - **Flatter, squarer controls.** Buttons, the Cards/List switcher and the new
   search button use an 8px corner radius and a flat accent fill instead of the
