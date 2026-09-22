@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.4.7
+- The sidebar brand is centred: logo above the site name above the tagline.
+  A custom logo can be up to 160px wide now that it has the row to itself.
+
 ## v1.4.6
 - The list view drops its Open column — clicking a row already opens the
   document, and the file is one click away in the document window. The
