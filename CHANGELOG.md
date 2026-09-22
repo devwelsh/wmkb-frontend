@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.4.4
+- Document and glossary modals may now grow to 1180px wide (was 900px); on
+  desktop the document window still fills the viewport height.
+- Button corners tightened from 12px to 7px across the interface.
+
 ## v1.4.3
 - **Full-screen document window on desktop.** Opening a document now fills the
   viewport with a 16px margin, and a PDF preview stretches to use the height
