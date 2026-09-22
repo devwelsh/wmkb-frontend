@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.4.3
+- **Full-screen document window on desktop.** Opening a document now fills the
+  viewport with a 16px margin, and a PDF preview stretches to use the height
+  left under the details rather than stopping at a fixed size.
+- **12px corners everywhere.** Every button — including the icon buttons, the
+  Cards/List switcher, the modal tools and the lightbox controls — and every
+  modal (document, glossary, search palette) now shares a 12px radius.
+
 ## v1.4.2
 - **Flat page background.** The drifting aurora gradient behind the site is
   gone; the page sits on a plain background with only the faint grain.
