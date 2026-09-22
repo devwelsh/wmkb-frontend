@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.4.1
+- **Flatter, squarer controls.** Buttons, the Cards/List switcher and the new
+  search button use an 8px corner radius and a flat accent fill instead of the
+  gradient pill; buttons also gained 2px of vertical padding.
+- **Search moved into the page header.** The sidebar's search bar is now a
+  search icon next to the Cards/List switcher; it opens the same search
+  palette (⌘K / Ctrl+K and `/` still work).
+- The site-name eyebrow above the page title is gone, and the document count
+  under the heading reads plainly (`12 documents`).
+
 ## v1.4.0
 - **Part-number search that ignores punctuation.** Searches no longer match the
   text as typed: both the query and every document are folded to bare

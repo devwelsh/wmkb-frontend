@@ -56,14 +56,6 @@
         </div>
 
         {% if branding.tagline %}<div class="sidebar-tagline">{{ branding.tagline }}</div>{% endif %}
-        <div class="sidebar-head">
-            <button class="sidebar-search" onclick="openCmdk()">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-                <span>Search the library…</span>
-                <span class="kbd-chip" data-kbd><svg class="kbd-cmd" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 3a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3H6a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3V6a3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3h12a3 3 0 0 0 3-3 3 3 0 0 0-3-3z"/></svg>K</span>
-            </button>
-        </div>
-
         <nav class="sidebar-nav">
             <div class="nav-section-label">Browse</div>
             <div id="navItems"></div>
@@ -119,11 +111,13 @@
             </div>
             <div class="page-head">
                 <div>
-                    <div class="eyebrow">{{ branding.site_name }}</div>
                     <h1 class="page-title" id="pageTitle">{{ page.heading }}</h1>
                     <div class="page-sub" id="pageSub"></div>
                 </div>
                 <div class="head-tools">
+                    <button class="icon-btn search-btn" id="searchBtn" onclick="openCmdk()" title="Search" aria-label="Search the library">
+                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+                    </button>
                     <div class="view-toggle" role="tablist" aria-label="View">
                         <span class="view-pill" id="viewPill"></span>
                         <button class="seg" id="viewCards" onclick="setView('cards')">
@@ -370,7 +364,7 @@ window.addEventListener('resize', positionViewPill);
 
 function renderDocs(){
     const area = document.getElementById('resultsArea');
-    document.getElementById('pageSub').textContent = `${DOCS.length} ${DOCS.length===1?'document':'documents'} to explore`;
+    document.getElementById('pageSub').textContent = `${DOCS.length} ${DOCS.length===1?'document':'documents'}`;
     if (!DOCS.length){
         area.innerHTML = `<div class="empty-state">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
@@ -739,7 +733,7 @@ document.addEventListener('keydown', e=>{
     setView(viewMode, false);
     // ⌘ is Mac-only; everyone else gets Ctrl (both keys already open the search)
     const plat = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || '';
-    if (!/mac|iphone|ipad/i.test(plat)) document.querySelectorAll('.kbd-chip[data-kbd]').forEach(el => { el.textContent = 'Ctrl K'; });
+    document.getElementById('searchBtn').title = /mac|iphone|ipad/i.test(plat) ? 'Search (⌘K)' : 'Search (Ctrl+K)';
     const legacyHash = location.hash;   // read it before replaceState drops it
     // Seed the first entry so Back/Forward always have a state to apply.
     history.replaceState({cat: currentCat, doc: BOOT.doc || null}, '', location.pathname + location.search);
