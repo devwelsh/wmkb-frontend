@@ -136,7 +136,7 @@ body::after {
    (the mobile copy in the content area keeps the side-by-side grid) */
 .sidebar .sidebar-logo { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 0.6rem; padding: 1.8rem 1.5rem 1.2rem; }
 .sidebar .sidebar-logo-img { max-width: 160px; }
-.sidebar .sidebar-logo-sub { margin-top: calc(3px - 0.6rem); }
+.sidebar .sidebar-logo-sub { margin-top: calc(9px - 0.6rem); }
 /* the content-area copy of the brand block exists only on mobile */
 .mobile-brand { display: none; }
 /* mobile-only tagline shown at the top of the sidebar once the brand moves out */

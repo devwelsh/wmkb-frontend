@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.4.8
+- A little more air between the sidebar's site name and tagline (9px, was 3px).
+
 ## v1.4.7
 - The sidebar brand is centred: logo above the site name above the tagline.
   A custom logo can be up to 160px wide now that it has the row to itself.
