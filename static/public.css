@@ -183,7 +183,7 @@ body::after {
 /* ── Content ── */
 .content { padding: 0.4rem 2rem 4rem; max-width: 1500px; }
 .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 1.5rem; flex-wrap: wrap; padding: calc(2.2rem - 12px) 0 1.8rem; }
-.page-title { font-family: var(--font-display); font-weight: 700; font-size: clamp(1.9rem, 3.6vw, 2.7rem); line-height: 1.05; letter-spacing: -0.03em; }
+.page-title { font-family: var(--font-display); font-weight: 700; font-size: 2rem; line-height: 1.05; letter-spacing: -0.03em; }
 .page-sub { color: var(--ink-soft); font-size: 0.95rem; margin-top: 0.55rem; }
 .head-tools { display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap; }
 .search-btn { border-radius: 7px; align-self: stretch; height: auto; width: 44px; }
@@ -273,7 +273,7 @@ a.chip.part:hover { background: var(--accent); color: var(--on-accent); transfor
 .idx-thumb { width: 46px; height: 46px; border-radius: 12px; flex-shrink: 0; overflow: hidden; background: linear-gradient(150deg, var(--accent-soft), transparent); display: flex; align-items: center; justify-content: center; color: var(--accent); }
 .idx-thumb img { width: 100%; height: 100%; object-fit: cover; }
 .idx-thumb svg { width: 20px; height: 20px; }
-.idx-title-text { font-family: var(--font-display); font-weight: 600; font-size: 0.98rem; color: var(--ink); letter-spacing: -0.012em; overflow-wrap: break-word; }
+.idx-title-text { font-family: var(--font-display); font-weight: 600; font-size: 0.9rem; color: var(--ink); letter-spacing: -0.012em; overflow-wrap: break-word; }
 .mini-chip { font-size: 0.68rem; font-weight: 500; padding: 2px 9px; border-radius: var(--pill); background: var(--surface-2); border: 1px solid var(--hairline); margin: 2px 3px 2px 0; display: inline-block; white-space: nowrap; color: var(--ink-soft); }
 .mini-chip.part { background: var(--accent-soft); color: var(--accent-deep); border-color: transparent; font-weight: 600; }
 a.mini-chip.part:hover { background: var(--accent); color: var(--on-accent); }

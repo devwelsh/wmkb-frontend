@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.4.9
+- The page heading is a fixed 2rem instead of scaling with the viewport, and
+  list-view document titles are slightly smaller (0.9rem).
+
 ## v1.4.8
 - A little more air between the sidebar's site name and tagline (9px, was 3px).
 
