@@ -234,7 +234,7 @@ a.chip.part:hover { background: var(--accent); color: var(--on-accent); transfor
 .index-wrap {
     border-radius: 12px; overflow-x: auto; overflow-y: hidden;
     background: var(--surface); backdrop-filter: blur(var(--blur)) saturate(1.3); -webkit-backdrop-filter: blur(var(--blur)) saturate(1.3);
-    border: 1px solid var(--edge); box-shadow: var(--shadow);
+    border: 1px solid var(--edge); box-shadow: var(--card-shadow);
     animation: rise 0.5s var(--ease) both;
 }
 /* Fixed layout: auto layout let the nowrap chip columns bully the Document
@@ -242,12 +242,11 @@ a.chip.part:hover { background: var(--accent); color: var(--on-accent); transfor
    deliberate share of the row and the low-value chip columns drop out at narrow
    widths rather than everything scrolling sideways. */
 .index-table { width: 100%; min-width: 560px; table-layout: fixed; border-collapse: separate; border-spacing: 0; }
-.index-table th:nth-child(1), .index-table td:nth-child(1) { width: 30%; }
+.index-table th:nth-child(1), .index-table td:nth-child(1) { width: 42%; }
 .index-table th:nth-child(2), .index-table td:nth-child(2) { width: 13%; }
 .index-table th:nth-child(3), .index-table td:nth-child(3) { width: 21%; }
 .index-table th:nth-child(4), .index-table td:nth-child(4) { width: 15%; }
 .index-table th:nth-child(5), .index-table td:nth-child(5) { width: 9%; }
-.index-table th:nth-child(6), .index-table td:nth-child(6) { width: 12%; }
 .index-table th { text-align: left; padding: 1rem 1.4rem; font-size: 0.64rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em; color: var(--ink-mute); border-bottom: 1px solid var(--hairline); white-space: nowrap; }
 /* Sortable headers: the button carries the cell's padding so the whole header
    is the hit target, and the chevron only goes solid on the active column. */
@@ -282,26 +281,23 @@ a.mini-chip.part:hover { background: var(--accent); color: var(--on-accent); }
    modal) so Document keeps a readable width instead of scrolling out of reach. */
 @media (max-width: 1200px) {
     .index-table th:nth-child(4), .index-table td:nth-child(4) { display: none; }
-    .index-table th:nth-child(1), .index-table td:nth-child(1) { width: 34%; }
+    .index-table th:nth-child(1), .index-table td:nth-child(1) { width: 49%; }
     .index-table th:nth-child(2), .index-table td:nth-child(2) { width: 15%; }
     .index-table th:nth-child(3), .index-table td:nth-child(3) { width: 26%; }
     .index-table th:nth-child(5), .index-table td:nth-child(5) { width: 10%; }
-    .index-table th:nth-child(6), .index-table td:nth-child(6) { width: 15%; }
 }
 @media (max-width: 1000px) {
     .index-table th:nth-child(3), .index-table td:nth-child(3) { display: none; }
-    .index-table th:nth-child(1), .index-table td:nth-child(1) { width: 45%; }
+    .index-table th:nth-child(1), .index-table td:nth-child(1) { width: 65%; }
     .index-table th:nth-child(2), .index-table td:nth-child(2) { width: 22%; }
     .index-table th:nth-child(5), .index-table td:nth-child(5) { width: 13%; }
-    .index-table th:nth-child(6), .index-table td:nth-child(6) { width: 20%; }
 }
-/* Phones: title + type + action only, tighter cells, no sideways scroll. */
+/* Phones: title + type only, tighter cells, no sideways scroll. */
 @media (max-width: 640px) {
     .index-table { min-width: 0; }
     .index-table th:nth-child(2), .index-table td:nth-child(2) { display: none; }
-    .index-table th:nth-child(1), .index-table td:nth-child(1) { width: 58%; }
+    .index-table th:nth-child(1), .index-table td:nth-child(1) { width: 84%; }
     .index-table th:nth-child(5), .index-table td:nth-child(5) { width: 16%; }
-    .index-table th:nth-child(6), .index-table td:nth-child(6) { width: 26%; }
     .index-table th { padding: 0.85rem 0.7rem; }
     .index-table td { padding: 0.95rem 0.7rem; }
     .idx-thumb { width: 38px; height: 38px; border-radius: 10px; }

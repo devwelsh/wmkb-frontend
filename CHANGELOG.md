@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.4.6
+- The list view drops its Open column — clicking a row already opens the
+  document, and the file is one click away in the document window. The
+  Document column takes the freed width.
+- The list view's frame casts the same small, neutral shadow as the cards.
+
 ## v1.4.5
 - Document cards cast a smaller, neutral shadow at rest and on hover; the
   blue-tinted glow is gone.

@@ -446,7 +446,6 @@ function tableHtml(){
             const lbl=esc(p.number||p.url);
             return p.url ? `<a class="mini-chip part" href="${esc(safeUrl(p.url))}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${lbl}</a>` : `<span class="mini-chip part">${lbl}</span>`;
         }).join('') || '<span class="cell-muted">—</span>';
-        const dl = d.has_file ? `<a class="btn btn-ghost btn-sm" href="${esc(d.download_url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">Open</a>` : '';
         return `<tr onclick="openDoc(${d.id})">
             <td><div class="idx-title"><div class="idx-thumb">${thumb}</div><a class="idx-title-text" href="${esc(d.url)}" onclick="return docClick(event,${d.id})">${esc(d.title)}</a></div></td>
             <td>${cat?`<a class="cell-link" href="${esc(catPath(cat.id))}" onclick="return navClick(event,'${cat.id}')">${esc(cat.name)}</a>`
@@ -454,11 +453,10 @@ function tableHtml(){
             <td>${fit}</td>
             <td>${parts}</td>
             <td><span class="mini-chip">${esc((d.ext||'').toUpperCase()||'—')}</span></td>
-            <td style="text-align:right;">${dl}</td>
         </tr>`;
     }).join('');
     return `<div class="index-wrap"><table class="index-table">
-        <thead><tr>${SORT_COLS.map(c=>sortTh(c.key,c.label)).join('')}<th></th></tr></thead>
+        <thead><tr>${SORT_COLS.map(c=>sortTh(c.key,c.label)).join('')}</tr></thead>
         <tbody>${rows}</tbody></table></div>`;
 }
 
