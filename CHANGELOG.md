@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.4.5
+- Document cards cast a smaller, neutral shadow at rest and on hover; the
+  blue-tinted glow is gone.
+- Sidebar category highlight and the outer frame of the Cards/List switcher
+  use a 10px radius; the switcher's inner pill matches the 7px buttons.
+
 ## v1.4.4
 - Document and glossary modals may now grow to 1180px wide (was 900px); on
   desktop the document window still fills the viewport height.

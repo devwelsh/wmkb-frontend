@@ -41,6 +41,8 @@
     --accent-soft: rgba(47, 116, 240, 0.12);
     --shadow: 0 12px 34px -16px rgba(30, 64, 128, 0.24), 0 4px 12px -8px rgba(30, 64, 128, 0.14);
     --shadow-lg: 0 36px 70px -24px rgba(30, 64, 128, 0.32), 0 14px 30px -16px rgba(30, 64, 128, 0.18);
+    --card-shadow: 0 2px 8px -4px rgba(0, 0, 0, 0.10), 0 1px 3px -1px rgba(0, 0, 0, 0.06);
+    --card-shadow-hover: 0 8px 18px -10px rgba(0, 0, 0, 0.18), 0 3px 8px -4px rgba(0, 0, 0, 0.10);
     --grain-opacity: 0.022;
     --on-accent: #ffffff;
 }
@@ -61,6 +63,8 @@
     --accent-soft: rgba(91, 155, 255, 0.15);
     --shadow: 0 14px 34px -18px rgba(0, 0, 0, 0.6), 0 4px 12px -8px rgba(0, 0, 0, 0.5);
     --shadow-lg: 0 40px 80px -28px rgba(0, 0, 0, 0.72), 0 16px 32px -18px rgba(0, 0, 0, 0.55);
+    --card-shadow: 0 2px 8px -4px rgba(0, 0, 0, 0.45), 0 1px 3px -1px rgba(0, 0, 0, 0.35);
+    --card-shadow-hover: 0 8px 18px -10px rgba(0, 0, 0, 0.6), 0 3px 8px -4px rgba(0, 0, 0, 0.4);
     --grain-opacity: 0.045;
     --on-accent: #07111f;
 }
@@ -139,7 +143,7 @@ body::after {
 .nav-section-label { font-size: 0.64rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: var(--ink-mute); padding: 0.9rem 0.85rem 0.5rem; }
 .nav-item {
     display: flex; align-items: center; gap: 0.7rem; padding: 0.6rem 0.85rem;
-    border-radius: var(--radius-sm); color: var(--ink-soft); font-size: 0.88rem; font-weight: 500;
+    border-radius: 10px; color: var(--ink-soft); font-size: 0.88rem; font-weight: 500;
     cursor: pointer; border: none; background: none; width: 100%; text-align: left;
     font-family: var(--font-body); transition: all var(--speed-fast) var(--ease); position: relative;
 }
@@ -180,9 +184,9 @@ body::after {
 .search-btn { border-radius: 7px; align-self: stretch; height: auto; width: 44px; }
 
 /* view toggle — sliding flat pill */
-.view-toggle { position: relative; display: inline-flex; padding: 4px; border-radius: 7px; background: var(--surface-2); border: 1px solid var(--hairline); backdrop-filter: blur(12px); }
-.view-pill { position: absolute; top: 4px; bottom: 4px; border-radius: 4px; background: var(--accent); transition: left var(--speed) var(--ease), width var(--speed) var(--ease); z-index: 0; }
-.seg { position: relative; z-index: 1; display: inline-flex; align-items: center; gap: 6px; padding: 0.5rem 1rem; border: none; background: none; border-radius: 4px; font-family: var(--font-body); font-size: 0.82rem; font-weight: 600; color: var(--ink-mute); cursor: pointer; transition: color var(--speed) var(--ease); white-space: nowrap; }
+.view-toggle { position: relative; display: inline-flex; padding: 4px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--hairline); backdrop-filter: blur(12px); }
+.view-pill { position: absolute; top: 4px; bottom: 4px; border-radius: 7px; background: var(--accent); transition: left var(--speed) var(--ease), width var(--speed) var(--ease); z-index: 0; }
+.seg { position: relative; z-index: 1; display: inline-flex; align-items: center; gap: 6px; padding: 0.5rem 1rem; border: none; background: none; border-radius: 7px; font-family: var(--font-body); font-size: 0.82rem; font-weight: 600; color: var(--ink-mute); cursor: pointer; transition: color var(--speed) var(--ease); white-space: nowrap; }
 .seg.active { color: var(--on-accent); }
 
 /* ── Card grid ── */
@@ -191,12 +195,12 @@ body::after {
     position: relative; border-radius: 12px; overflow: hidden; cursor: pointer;
     background: var(--surface);
     backdrop-filter: blur(var(--blur)) saturate(1.3); -webkit-backdrop-filter: blur(var(--blur)) saturate(1.3);
-    border: 1px solid var(--edge); box-shadow: var(--shadow);
+    border: 1px solid var(--edge); box-shadow: var(--card-shadow);
     display: flex; flex-direction: column;
     transition: transform var(--speed) var(--ease), box-shadow var(--speed) var(--ease), border-color var(--speed) var(--ease);
     animation: rise 0.6s var(--ease) both; animation-delay: calc(var(--i, 0) * 45ms);
 }
-.kb-card:hover { transform: translateY(-6px); box-shadow: var(--shadow-lg); border-color: color-mix(in srgb, var(--accent) 50%, transparent); }
+.kb-card:hover { transform: translateY(-6px); box-shadow: var(--card-shadow-hover); border-color: color-mix(in srgb, var(--accent) 50%, transparent); }
 .kb-thumb { height: 168px; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; background: linear-gradient(150deg, var(--accent-soft), transparent); }
 .kb-thumb img { width: 100%; height: 100%; object-fit: cover; transition: transform var(--speed) var(--ease); }
 .kb-card:hover .kb-thumb img { transform: scale(1.05); }
